@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>PawTrail — Reunite lost pets, fast</title>
+<meta name="description" content="Report a lost or found pet, get instant matches, and reach your neighbors in seconds. Free, no account needed." />
+<meta name="theme-color" content="#e87c2e" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="PawTrail" />
+<meta property="og:title" content="PawTrail — Reunite lost pets, fast" />
+<meta property="og:description" content="Free. No account. Most pets found in 24 hours." />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=1200&h=630&fit=crop" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- PWA install banner -->
+<div class="install-banner" id="install-banner" hidden>
+  <div class="install-banner-body">
+    <span class="install-icon">🐾</span>
+    <div>
+      <strong>Install PawTrail</strong>
+      <div class="install-sub">Works offline · Fast alerts · No app store needed</div>
+    </div>
+  </div>
+  <div class="install-actions">
+    <button class="btn small primary" id="install-yes">Install</button>
+    <button class="btn small ghost" id="install-no">Not now</button>
+  </div>
+</div>
+
+<!-- Tip of the day bar -->
+<div class="tip-bar" id="tip-bar">
+  <div class="tip-bar-inner">
+    <span class="tip-label">💡 Tip</span>
+    <span id="tip-bar-text"></span>
+  </div>
+  <button class="tip-bar-close" id="tip-bar-close" aria-label="Dismiss tip">✕</button>
+</div>
+
+<header class="topbar" id="topbar">
+  <a href="#/" class="brand" data-link>
+    <span class="paw">🐾</span><span>PawTrail</span>
+  </a>
+  <nav class="nav" id="nav-links">
+    <a href="#/listings" data-link>Browse</a>
+    <a href="#/community" data-link>Community</a>
+    <a href="#/tips" data-link>Tips</a>
+    <a href="#/advice" data-link>Advice</a>
+    <a href="#/shelter" data-link>Shelters</a>
+    <a href="#/my-listings" data-link>My Listings</a>
+    <button class="btn-icon" id="search-btn" title="Search" aria-label="Search">🔎</button>
+    <button class="btn-icon" id="alerts-btn" title="Alerts" aria-label="Alerts">
+      🔔<span class="badge" id="alerts-badge" hidden>0</span>
+    </button>
+    <button class="btn-icon" id="darkmode-btn" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
+  </nav>
+  <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</header>
+
+<!-- Mobile nav overlay -->
+<div class="mobile-nav-overlay" id="mobile-nav-overlay" hidden></div>
+<nav class="mobile-nav" id="mobile-nav" hidden aria-label="Mobile navigation">
+  <div class="mobile-nav-head">
+    <a href="#/" class="brand" data-link>🐾 PawTrail</a>
+    <button class="iconbtn" id="mobile-nav-close" aria-label="Close menu">✕</button>
+  </div>
+  <a href="#/listings" data-link class="mobile-nav-link">🗺️ Browse listings</a>
+  <a href="#/my-listings" data-link class="mobile-nav-link">📋 My listings</a>
+  <a href="#/community" data-link class="mobile-nav-link">💬 Community</a>
+  <a href="#/tips" data-link class="mobile-nav-link">💡 Tips</a>
+  <a href="#/advice" data-link class="mobile-nav-link">📖 Advice center</a>
+  <a href="#/shelter" data-link class="mobile-nav-link">🏥 Shelter portal</a>
+  <a href="#/settings" data-link class="mobile-nav-link">⚙️ Notification settings</a>
+  <a href="#/about" data-link class="mobile-nav-link">ℹ️ About</a>
+  <a href="#/help" data-link class="mobile-nav-link">📞 Helpline directory</a>
+  <div class="mobile-nav-ctas">
+    <a href="#/lost" class="btn lost block" data-link>😰 I Lost a Pet</a>
+    <a href="#/found" class="btn found block" data-link style="margin-top:8px;">🤝 I Found a Pet</a>
+  </div>
+</nav>
+
+<main id="app" aria-live="polite"></main>
+
+<!-- Search overlay -->
+<div class="search-overlay" id="search-overlay" hidden>
+  <div class="search-box">
+    <input type="text" id="search-input" placeholder="Search by pet name, breed, neighborhood…" autocomplete="off" />
+    <button class="iconbtn" id="search-close" aria-label="Close search">✕</button>
+  </div>
+  <div class="search-results" id="search-results"></div>
+</div>
+
+<!-- Drawer overlay backdrop -->
+<div class="drawer-overlay" id="drawer-overlay"></div>
+
+<!-- Assistant drawer -->
+<button class="fab" id="assistant-fab" title="Ask PawTrail Assistant" aria-label="Open assistant">
+  <span class="fab-icon">💬</span>
+  <span class="fab-label">Ask us anything</span>
+</button>
+
+<aside class="drawer" id="assistant-drawer" aria-label="PawTrail Assistant">
+  <div class="drawer-head">
+    <div class="drawer-head-title">
+      <div class="assistant-avatar">🐾</div>
+      <div>
+        <strong>PawTrail Assistant</strong>
+        <div class="drawer-subline">Online · Replies instantly</div>
+      </div>
+    </div>
+    <button class="drawer-retract-btn" id="assistant-close" aria-label="Collapse">
+      <span>›</span> Collapse
+    </button>
+  </div>
+  <div class="chat" id="chat-log"></div>
+  <div class="chat-quick">
+    <button class="quick-chip" data-q="I just lost my dog">Lost my dog</button>
+    <button class="quick-chip" data-q="I found a stray cat">Found a stray</button>
+    <button class="quick-chip" data-q="Is this message a scam?">Scam check</button>
+    <button class="quick-chip" data-q="What should I do first?">First steps</button>
+    <button class="quick-chip" data-q="I found an injured animal">Injured animal</button>
+  </div>
+  <form id="chat-form" class="chat-form">
+    <input id="chat-input" placeholder="Ask anything…" autocomplete="off" />
+    <button class="btn small primary" type="submit">Send</button>
+  </form>
+  <p class="chat-disclaimer">For emergencies (injured animal, scam, custody dispute) tap below.</p>
+  <button class="btn small ghost" id="chat-escalate">🆘 Get human help →</button>
+</aside>
+
+<!-- Alerts drawer -->
+<aside class="drawer" id="alerts-drawer" aria-label="Match alerts">
+  <div class="drawer-head">
+    <div class="drawer-head-title">
+      <div class="assistant-avatar">🔔</div>
+      <div>
+        <strong>Match alerts</strong>
+        <div class="drawer-subline">Real-time pet matches</div>
+      </div>
+    </div>
+    <button class="drawer-retract-btn" id="alerts-close" aria-label="Collapse">
+      <span>›</span> Collapse
+    </button>
+  </div>
+  <div id="alerts-list" class="alerts-list"></div>
+  <div style="padding:12px; border-top:1px solid var(--line);">
+    <a href="#/settings" data-link class="btn small ghost block">⚙️ Manage alert preferences</a>
+  </div>
+</aside>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<!-- Share wizard modal (injected by JS) -->
+<div id="share-wizard-root"></div>
+
+<footer class="foot">
+  <div class="foot-grid">
+    <div class="foot-brand">
+      <div class="foot-logo">🐾 PawTrail</div>
+      <p>Free. Fast. Built for the panicked first hour. Most pets are found within 5 miles of home — we make sure your neighbors know to look.</p>
+      <div class="foot-trust">
+        <span class="trust-badge">🔒 Private relay</span>
+        <span class="trust-badge">🆓 Free forever</span>
+        <span class="trust-badge">🚫 No ads</span>
+        <span class="trust-badge">📱 Installable</span>
+      </div>
+    </div>
+    <div class="foot-col">
+      <strong>Report</strong>
+      <a href="#/lost" data-link>Lost pet</a>
+      <a href="#/found" data-link>Found pet</a>
+      <a href="#/listings" data-link>Browse listings</a>
+      <a href="#/my-listings" data-link>My listings</a>
+      <a href="#/shelter" data-link>Shelter portal</a>
+    </div>
+    <div class="foot-col">
+      <strong>Learn</strong>
+      <a href="#/tips" data-link>Quick tips</a>
+      <a href="#/advice" data-link>Advice center</a>
+      <a href="#/advice/scams" data-link>Avoid scams</a>
+      <a href="#/advice/first-24-hours" data-link>First 24 hours</a>
+      <a href="#/advice/search-strategy" data-link>Search strategy</a>
+    </div>
+    <div class="foot-col">
+      <strong>Support</strong>
+      <a href="#/community" data-link>Community board</a>
+      <a href="#/help" data-link>Helpline directory</a>
+      <a href="#/settings" data-link>Alert settings</a>
+      <a href="#/about" data-link>About PawTrail</a>
+    </div>
+  </div>
+  <div class="foot-bottom">
+    <span>© 2026 PawTrail</span>
+    <span>·</span>
+    <span>Demo — listings and names are fictional</span>
+    <span>·</span>
+    <span>Built with 🧡 for pets and the people who love them</span>
+  </div>
+</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script src="features.js"></script>
+</body>
+</html>
