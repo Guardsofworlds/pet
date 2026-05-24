@@ -207,6 +207,14 @@ img { max-width: 100%; height: auto; display: block; }
   position: fixed; inset: 0;
   background: rgba(20,15,8,.5);
   z-index: 49;
+  display: none;
+}
+.mobile-nav-overlay.open {
+  display: block;
+}
+.mobile-nav-overlay[hidden],
+.mobile-nav[hidden] {
+  display: none !important;
 }
 .mobile-nav {
   position: fixed;
@@ -219,15 +227,24 @@ img { max-width: 100%; height: auto; display: block; }
   flex-direction: column;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
-  animation: slideInLeft .2s ease-out;
+  transform: translateX(-100%);
+  transition: transform .2s ease-out;
 }
-@keyframes slideInLeft { from { transform: translateX(-100%); } }
+.mobile-nav.open {
+  transform: translateX(0);
+}
 .mobile-nav-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
+}
+.mobile-nav-head .iconbtn {
+  min-width: 44px;
+  min-height: 44px;
+  position: relative;
+  z-index: 2;
 }
 .mobile-nav-link {
   display: block;
@@ -1368,7 +1385,8 @@ section.block > h2 { font-size: clamp(18px, 3vw, 24px); font-weight: 800; letter
    ========================================= */
 .install-banner {
   position: fixed;
-  top: 0; left: 0; right: 0;
+  right: 16px; bottom: 16px;
+  width: min(420px, calc(100vw - 32px));
   background: var(--ink);
   color: white;
   display: flex;
@@ -1378,7 +1396,10 @@ section.block > h2 { font-size: clamp(18px, 3vw, 24px); font-weight: 800; letter
   z-index: 35;
   gap: 10px;
   flex-wrap: wrap;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
 }
+.install-banner[hidden] { display: none !important; }
 .install-banner-body { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .install-icon { font-size: 28px; flex-shrink: 0; }
 .install-banner strong { color: white; font-size: 14.5px; }
@@ -1397,6 +1418,9 @@ section.block > h2 { font-size: clamp(18px, 3vw, 24px); font-weight: 800; letter
   flex-direction: column;
   align-items: center;
   padding-top: 80px;
+}
+.search-overlay[hidden] {
+  display: none !important;
 }
 .search-box {
   background: white;
@@ -1669,4 +1693,3 @@ section.block > h2 { font-size: clamp(18px, 3vw, 24px); font-weight: 800; letter
   a[href]::after { content: " (" attr(href) ")"; font-size: 11px; color: #888; }
   .listing { break-inside: avoid; }
 }
-

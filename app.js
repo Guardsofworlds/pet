@@ -7,13 +7,30 @@ const state = {
   listings: [],
   alerts: [],
   communityPosts: [],
-  reunions: 247,
+  reunions: 0,
   draft: null,
   tipDismissed: false,
   bookmarks: [],
   shareCounts: {},
+  moderationWarnings: 0,
+  moderationBanUntil: null,
+  matchWeights: null,
+  matchFeedback: [],
   settings: { email: true, sms: false, freq: "instant", paused: false, darkMode: false },
   pwaInstallDismissed: false,
+};
+
+const DEFAULT_MATCH_WEIGHTS = {
+  base: 0.05,
+  color: 0.2,
+  breedExact: 0.15,
+  breedSimilar: 0.05,
+  size: 0.05,
+  zipExact: 0.1,
+  zipNear: 0.05,
+  distanceClose: 0.05,
+  timeClose: 0.05,
+  image: 0.35,
 };
 
 // ---------- storage ----------
@@ -21,6 +38,8 @@ function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) Object.assign(state, JSON.parse(raw));
+    state.listings = (state.listings || []).filter(l => !/^L-\d+/.test(l.id || "") && !/^SH-\d+/.test(l.id || ""));
+    if (state.reunions === 247 && !state.listings.length) state.reunions = 0;
   } catch (e) { /* ignore */ }
 }
 function saveState() {
@@ -34,6 +53,10 @@ function saveState() {
       tipDismissed: state.tipDismissed,
       bookmarks: state.bookmarks,
       shareCounts: state.shareCounts,
+      moderationWarnings: state.moderationWarnings,
+      moderationBanUntil: state.moderationBanUntil,
+      matchWeights: state.matchWeights,
+      matchFeedback: state.matchFeedback,
       settings: state.settings,
       pwaInstallDismissed: state.pwaInstallDismissed,
     }));
@@ -48,9 +71,158 @@ const escapeHtml = s => String(s ?? "").replace(/[&<>"']/g, c =>
 const html = (strings, ...vals) =>
   strings.reduce((acc, s, i) => acc + s + (vals[i] !== undefined ? vals[i] : ""), "");
 
-function allListings() { return [...state.listings, ...SEED_LISTINGS]; }
+function allListings() { return [...state.listings]; }
 function allPosts() { return [...state.communityPosts, ...SEED_COMMUNITY_POSTS]; }
 function findListing(id) { return allListings().find(l => l.id === id); }
+
+function matchWeights() {
+  state.matchWeights = { ...DEFAULT_MATCH_WEIGHTS, ...(state.matchWeights || {}) };
+  return state.matchWeights;
+}
+
+function isSubmissionBanned() {
+  return state.moderationBanUntil && Date.now() < new Date(state.moderationBanUntil).getTime();
+}
+
+function banTimeRemaining() {
+  if (!isSubmissionBanned()) return "";
+  const hours = Math.ceil((new Date(state.moderationBanUntil).getTime() - Date.now()) / 3600000);
+  return hours >= 24 ? `${Math.ceil(hours / 24)} day${hours > 24 ? "s" : ""}` : `${hours} hour${hours !== 1 ? "s" : ""}`;
+}
+
+function looksLikeJunk(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return false;
+  // PRD §4.9: Anti-abuse / Junk word detection
+  const bannedTerms = /\b(rizz|skibi|skibidi|gyatt|sigma)\b/i;
+  if (bannedTerms.test(text)) return true;
+  const letters = text.replace(/[^a-z]/g, "");
+  if (letters.length >= 8 && new Set(letters).size <= 2) return true;
+  return false;
+}
+
+function showWarningModal(message, warnings) {
+  const m = openModal(html`
+    <div style="text-align:center; padding:10px;">
+      <div style="font-size:50px; margin-bottom:15px;">⚠️</div>
+      <h2 style="color:var(--lost); margin-bottom:10px; font-weight:900;">WARNING</h2>
+      <p style="font-size:16px; line-height:1.5; margin-bottom:20px;">${escapeHtml(message)}</p>
+      <div style="background:var(--bg); padding:15px; border-radius:12px; margin-bottom:24px; border:1px solid var(--line);">
+        <strong style="display:block; margin-bottom:8px;">Warning Counter: ${warnings} / 10</strong>
+        <div style="height:12px; background:var(--line); border-radius:6px; overflow:hidden;">
+          <div style="height:100%; background:var(--lost); width:${(warnings / 10) * 100}%; transition: width 0.4s ease;"></div>
+        </div>
+      </div>
+      <button class="btn primary block big" data-close>I understand</button>
+    </div>
+  `);
+  m.querySelector("[data-close]").addEventListener("click", () => m.remove());
+}
+
+function validateListingData(data) {
+  if (isSubmissionBanned()) {
+    return { ok: false, banned: true, message: `Submissions are paused for this browser for ${banTimeRemaining()} because of repeated invalid information.` };
+  }
+
+  // Check all fields except 'name' for junk/slang terms per user request
+  const checkedFields = ["location", "zip", "contact", "breed", "color", "size", "age", "features", "reward", "condition", "custody"];
+  const badFields = checkedFields.filter(field => looksLikeJunk(data[field]));
+
+  // Troll detection: Cross-reference existing submissions in local state
+  const now = Date.now();
+  // Daily frequency check: max 30 lost and 30 found per day for this browser
+  const ownRecentDay = state.listings.filter(l => l.poster?.name === "You" && (now - new Date(l.posted).getTime()) < 86400000);
+  const isDailyLimitReached = (data.type === "lost" && ownRecentDay.filter(l => l.type === "lost").length >= 30) || 
+                               (data.type === "found" && ownRecentDay.filter(l => l.type === "found").length >= 30);
+
+  // Hourly frequency checks disabled for testing per user request
+  const isRapidFire = false;
+  const isZipHopping = false;
+
+  if (badFields.length || isDailyLimitReached || isRapidFire || isZipHopping) {
+    state.moderationWarnings = (state.moderationWarnings || 0) + 1;
+    let message = "Suspicious activity detected. Please enter real information.";
+    if (isDailyLimitReached) message = `Daily limit reached: You can only report 30 lost and 30 found pets per day. Warning ${state.moderationWarnings}/10.`;
+    if (isRapidFire || isZipHopping) message = `Submission frequency limit reached for this area. Warning ${state.moderationWarnings}/10.`;
+    if (badFields.length) message = "Please use proper language. Slang or junk terms are not permitted in reports.";
+
+    if (state.moderationWarnings >= 10) {
+      state.moderationBanUntil = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+      message = "Too many invalid submissions. Submissions are blocked for 2 days.";
+    }
+    saveState();
+    return { ok: false, warning: true, message, count: state.moderationWarnings };
+  }
+
+  // PRD §4.2: Photo is the single biggest factor. Ensure it's present for real info.
+  if (!data.hasPhoto) {
+    return { ok: false, message: "A photo is required to ensure accurate matching and prevent spam." };
+  }
+
+  if (data.zip && !/^\d{5}$/.test(data.zip.trim())) {
+    return { ok: false, message: "Please enter a valid 5-digit ZIP code." };
+  }
+  if (!String(data.location || "").trim() || String(data.location || "").trim().length < 6) {
+    return { ok: false, message: "Please enter a real street, neighborhood, or landmark." };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.contact || "") && !/[\d\s().+-]{7,}/.test(data.contact || "")) {
+    return { ok: false, message: "Please enter a valid email or phone number for matches." };
+  }
+
+  return { ok: true };
+}
+
+function localListingPolicy() {
+  const now = Date.now();
+  const windowMs = 86400000; // 24-hour window
+  const ownRecent = state.listings.filter(l =>
+    l.poster?.name === "You" && now - new Date(l.posted || 0).getTime() < windowMs
+  );
+  if (ownRecent.length >= 60) {
+    return {
+      allowed: false,
+      reason: "Daily submission limit reached for this session (60 reports).",
+    };
+  }
+  return { allowed: true };
+}
+
+async function canSubmitListing(listing) {
+  if (isSubmissionBanned()) {
+    return { allowed: false, reason: `Submissions are blocked for ${banTimeRemaining()} because of repeated invalid information.` };
+  }
+  const local = localListingPolicy();
+  if (!local.allowed) return local;
+  if (!window.PawTrailSupabase?.ready) return local;
+  const policy = await window.PawTrailSupabase.checkListingPolicy(listing);
+  return policy?.allowed === false
+    ? { allowed: false, reason: policy.reason || "This account or network is temporarily blocked from adding listings." }
+    : { allowed: true };
+}
+
+async function persistListing(listing, source = "public") {
+  state.listings.unshift(listing);
+  saveState();
+  if (!window.PawTrailSupabase?.ready) return;
+  try {
+    await window.PawTrailSupabase.insertListing(listing, source);
+  } catch (err) {
+    console.warn("Supabase listing save failed; kept local copy.", err);
+    toast("Saved locally. Cloud sync will retry when Supabase is available.");
+  }
+}
+
+function hydrateRemoteListings() {
+  if (!window.PawTrailSupabase?.ready) return;
+  window.PawTrailSupabase.fetchListings()
+    .then(rows => {
+      const localIds = new Set(state.listings.map(l => l.id));
+      rows.filter(l => l.id && !localIds.has(l.id)).forEach(l => state.listings.push(l));
+      saveState();
+      if (location.hash.split("?")[0] === "#/listings") routeRender(location.hash);
+    })
+    .catch(err => console.warn("Supabase listing load failed.", err));
+}
 
 function fmtDate(iso) {
   if (!iso) return "";
@@ -175,6 +347,7 @@ function routeRender(hash) {
   if (route === "my-listings") return renderMyListings();
   if (route === "shelter") return renderShelterPortal();
   if (route === "settings") return renderSettings();
+  if (route === "admin") return renderAdmin();
   if (route === "share-wizard" && rest[0]) return renderShareWizard(rest[0]);
   if (route === "search") return renderSearchPage();
   if (route === "bookmarks") return renderBookmarks();
@@ -307,7 +480,7 @@ function renderHome() {
         <h2 style="margin-bottom:0;">They made it home 🧡</h2>
         <a href="#/listings?type=reunited" data-link style="font-size:14px; font-weight:600; color:var(--found);">All reunions →</a>
       </div>
-      <p class="subhead" style="margin-bottom:18px;">Real stories from neighbors who used PawTrail to find their pets.</p>
+      <p class="subhead" style="margin-bottom:18px;">Example outcomes for the review area. Replace these with verified user reviews once the service is live.</p>
       <div class="testimonials-grid">
         ${TESTIMONIALS.map(t => html`
           <div class="testimonial">
@@ -483,13 +656,13 @@ function renderListings() {
 }
 
 // ---------- listing detail ----------
-function renderListingDetail(id) {
+async function renderListingDetail(id) {
   const l = findListing(id);
   if (!l) {
     $("#app").innerHTML = `<div class="empty"><div class="emoji">🔍</div>Listing not found. <a href="#/listings" data-link>Back to browse</a></div>`;
     bindLinks(); return;
   }
-  const matches = computeMatches(l).slice(0, 3);
+  const matches = (await computeMatches(l)).slice(0, 3);
   const tagClass = l.status === "reunited" ? "reunited" : l.type;
   const tagText = l.status === "reunited" ? "Reunited" : (l.type === "lost" ? "Lost" : "Found");
   const title = l.name || (l.type === "found" ? `Found ${l.species}` : `Lost ${l.species}`);
@@ -593,8 +766,18 @@ function renderListingDetail(id) {
     });
   }
   $("#report-btn").addEventListener("click", () => openReportModal(l));
-  $$("[data-act=confirm]").forEach(b => b.addEventListener("click", () => { toast("Confirmed match — the other side has been notified."); }));
-  $$("[data-act=reject]").forEach(b => b.addEventListener("click", () => { toast("Marked not a match. That helps retrain the model. Thanks."); }));
+  
+  // Connect UI buttons to the training algorithm
+  $$("[data-act=confirm]").forEach(b => b.addEventListener("click", () => { 
+    const m = findListing(b.dataset.mid);
+    if (m) trainMatchAlgorithm(l, m, true);
+    toast("Confirmed match — the other side has been notified."); 
+  }));
+  $$("[data-act=reject]").forEach(b => b.addEventListener("click", () => { 
+    const m = findListing(b.dataset.mid);
+    if (m) trainMatchAlgorithm(l, m, false);
+    toast("Marked not a match. That helps retrain the model. Thanks."); 
+  }));
 }
 
 function attrRow(k, v) {
@@ -603,11 +786,17 @@ function attrRow(k, v) {
 }
 
 function matchCard(source, m) {
-  const cls = m.score >= 0.75 ? "high" : "";
   const pct = Math.round(m.score * 100);
+  let label = "Low Confidence";
+  let cls = "";
+  if (pct >= 95) { label = "Perfect Match"; cls = "high"; }
+  else if (pct >= 75) { label = "High Confidence"; cls = "high"; }
+  else if (pct >= 50) { label = "Medium Confidence"; cls = "medium"; }
+  else if (pct < 20) { label = "Uncommon Match"; cls = "low"; }
+
   return html`
     <div class="match-card ${cls}">
-      <span class="score">${pct}% confidence · ${m.score >= 0.75 ? "High" : m.score >= 0.5 ? "Medium" : "Low"}</span>
+      <span class="score">${pct}% confidence · ${label}</span>
       <div class="compare">
         <img src="${escapeHtml(source.photo || "")}" alt="" />
         <div class="arrow">↔</div>
@@ -628,35 +817,148 @@ function matchCard(source, m) {
 }
 
 // ---------- matching ----------
-function computeMatches(source) {
+async function getImageSimilarity(src1, src2) {
+  if (!src1 || !src2) return 0;
+  return new Promise(resolve => {
+    const img1 = new Image(); const img2 = new Image();
+    let loaded = 0;
+    const onDone = () => { if (++loaded === 2) resolve(compareImages(img1, img2)); };
+    img1.crossOrigin = img2.crossOrigin = "anonymous";
+    img1.onload = onDone; img1.onerror = () => resolve(0);
+    img2.crossOrigin = img2.crossOrigin = "anonymous";
+    img2.onload = onDone; img2.onerror = () => resolve(0);
+    img1.src = src1; img2.src = src2;
+  });
+}
+
+function compareImages(img1, img2) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 8; canvas.height = 8;
+  const getFingerprint = (img) => {
+    ctx.drawImage(img, 0, 0, 8, 8);
+    const d = ctx.getImageData(0, 0, 8, 8).data;
+    const gray = []; let avg = 0;
+    for (let i = 0; i < 64; i++) {
+      const v = (d[i*4] + d[i*4+1] + d[i*4+2]) / 3;
+      gray.push(v); avg += v;
+    }
+    avg /= 64; return gray.map(v => v > avg ? 1 : 0);
+  };
+  const h1 = getFingerprint(img1); const h2 = getFingerprint(img2);
+  let diff = 0;
+  for (let i = 0; i < 64; i++) if (h1[i] !== h2[i]) diff++;
+  return (64 - diff) / 64;
+}
+
+async function computeMatches(source) {
+  const weights = matchWeights();
   const others = allListings().filter(l =>
     l.id !== source.id && l.status !== "reunited" &&
     l.type !== source.type && l.species === source.species &&
     withinDays(l.when, source.when, 30));
-  return others.map(l => {
-    let score = 0.2;
+    
+  const results = await Promise.all(others.map(async l => {
+    if (!visuallyCompatible(source, l)) return null;
+    let score = weights.base;
     const reasons = [];
-    if (l.color && source.color && l.color === source.color) { score += 0.2; reasons.push("same color"); }
+    if (colorsCompatible(source.color, l.color, source.breed, l.breed)) { score += weights.color; reasons.push("compatible color"); }
     if (l.breed && source.breed) {
       const a = l.breed.toLowerCase(), b = source.breed.toLowerCase();
-      if (a === b) { score += 0.18; reasons.push("same breed"); }
-      else if (a.includes(b.split(" ")[0]) || b.includes(a.split(" ")[0])) { score += 0.1; reasons.push("similar breed"); }
+      if (a === b) { score += weights.breedExact; reasons.push("same breed"); }
+      else if (similarBreed(a, b)) { score += weights.breedSimilar; reasons.push("similar breed"); }
     }
-    if (l.size && source.size && l.size === source.size) { score += 0.08; reasons.push("same size"); }
+    if (l.size && source.size && l.size === source.size) { score += weights.size; reasons.push("same size"); }
     if (l.zip && source.zip) {
-      if (l.zip === source.zip) { score += 0.15; reasons.push("same ZIP"); }
-      else if (l.zip.slice(0, 3) === source.zip.slice(0, 3)) { score += 0.08; reasons.push("nearby area"); }
+      if (l.zip === source.zip) { score += weights.zipExact; reasons.push("same ZIP"); }
+      else if (l.zip.slice(0, 3) === source.zip.slice(0, 3)) { score += weights.zipNear; reasons.push("nearby area"); }
     }
     if (l.distance != null && source.distance != null) {
       const d = Math.abs(l.distance - source.distance);
-      if (d < 1) { score += 0.1; reasons.push(`${d.toFixed(1)} mi apart`); }
+      if (d < 1) { score += weights.distanceClose; reasons.push(`${d.toFixed(1)} mi apart`); }
       else if (d < 3) score += 0.05;
     }
-    const hrs = Math.abs(new Date(l.when) - new Date(source.when)) / 3600000;
-    if (hrs < 24) { score += 0.08; reasons.push("within 24h"); }
+    const hrs = Math.abs(new Date(l.when || 0) - new Date(source.when || 0)) / 3600000;
+    if (hrs < 24) { score += weights.timeClose; reasons.push("within 24h"); }
     else if (hrs < 72) score += 0.04;
+
+    const visualScore = await getImageSimilarity(source.photo, l.photo);
+    score += visualScore * weights.image;
+    if (visualScore > 0.7) reasons.push("strong visual match");
+    else if (visualScore > 0.4) reasons.push("similar appearance");
+
     return { listing: l, score: Math.min(1, score), reasons };
-  }).filter(m => m.score >= 0.25).sort((a, b) => b.score - a.score);
+  }));
+  return results.filter(m => m && m.score >= 0.1).sort((a, b) => b.score - a.score);
+}
+
+function normalizedColors(color, breed) {
+  const text = `${color || ""} ${breed || ""}`.toLowerCase();
+  const groups = [];
+  if (/\bblack\b/.test(text)) groups.push("black");
+  if (/\b(white|cream)\b/.test(text)) groups.push("white");
+  if (/\b(brown|chocolate|liver)\b/.test(text)) groups.push("brown");
+  if (/\b(tan|gold|golden|yellow|blond|blonde|fawn)\b/.test(text)) groups.push("gold");
+  if (/\b(gray|grey|blue|silver)\b/.test(text)) groups.push("gray");
+  if (/\b(orange|ginger)\b/.test(text)) groups.push("orange");
+  if (/\b(tricolor|tri-color|brindle|merle|calico|tabby)\b/.test(text)) groups.push("patterned");
+  return [...new Set(groups)];
+}
+
+function colorsCompatible(aColor, bColor, aBreed, bBreed) {
+  const a = normalizedColors(aColor, aBreed);
+  const b = normalizedColors(bColor, bBreed);
+  if (!a.length || !b.length) return true;
+  return a.some(c => b.includes(c));
+}
+
+function similarBreed(a, b) {
+  const stop = new Set(["mix", "mixed", "domestic", "shorthair", "longhair", "retriever", "dog", "cat"]);
+  const aw = a.split(/\W+/).filter(w => w && !stop.has(w));
+  const bw = b.split(/\W+/).filter(w => w && !stop.has(w));
+  return aw.some(w => bw.includes(w) || bw.some(x => x.includes(w) || w.includes(x)));
+}
+
+function visuallyCompatible(source, listing) {
+  // Strict Color Filtering: Prevent matches between incompatible colors (e.g. Black vs Gold)
+  const aColors = normalizedColors(source.color, source.breed);
+  const bColors = normalizedColors(listing.color, listing.breed);
+  
+  // If both have color data, they MUST share at least one color group to be compatible
+  if (aColors.length && bColors.length) {
+    const hasOverlap = aColors.some(c => bColors.includes(c));
+    if (!hasOverlap) return false;
+  }
+
+  if (source.size && listing.size) {
+    const order = ["small", "medium", "large"];
+    const diff = Math.abs(order.indexOf(source.size) - order.indexOf(listing.size));
+    if (diff > 1) return false;
+  }
+  return true;
+}
+
+function trainMatchAlgorithm(source, matchedListing, positive) {
+  const weights = matchWeights();
+  const delta = positive ? 0.02 : -0.025;
+  const bump = key => {
+    weights[key] = Math.max(0.02, Math.min(0.5, Number((weights[key] + delta).toFixed(3))));
+  };
+
+  if (colorsCompatible(source.color, matchedListing.color, source.breed, matchedListing.breed)) bump("color");
+  if (source.breed && matchedListing.breed) bump(source.breed.toLowerCase() === matchedListing.breed.toLowerCase() ? "breedExact" : "breedSimilar");
+  if (source.size && matchedListing.size && source.size === matchedListing.size) bump("size");
+  if (source.zip && matchedListing.zip) bump(source.zip === matchedListing.zip ? "zipExact" : "zipNear");
+
+  state.matchWeights = weights;
+  state.matchFeedback = state.matchFeedback || [];
+  state.matchFeedback.push({
+    sourceId: source.id,
+    matchId: matchedListing.id,
+    positive,
+    at: new Date().toISOString(),
+  });
+  saveState();
 }
 function withinDays(a, b, d) {
   if (!a || !b) return true;
@@ -976,17 +1278,28 @@ function initFormHandlers(type) {
   }, 5000);
 
   // Submit
-  $("#pet-form").addEventListener("submit", e => {
+  $("#pet-form").addEventListener("submit", async e => {
     e.preventDefault();
     if (!species) { toast("Please pick a species first (dog, cat, or other)."); $$("#species-row .species-tile")[0]?.focus(); return; }
     const contact = document.getElementById("contact")?.value?.trim();
     if (!contact) { toast("Please enter an email or phone so matches can reach you."); document.getElementById("contact")?.focus(); return; }
+    
+    const data = collectForm(type, species);
+    data.hasPhoto = photos.length > 0;
+
     if (!photos.length) {
-      const pool = PHOTOS[species] || PHOTOS.other;
-      photos.push(pool[Math.floor(Math.random() * pool.length)]);
+      toast("Please upload at least one real photo of the pet.");
+      return;
     }
     clearInterval(autoSaveTimer);
-    const data = collectForm(type, species);
+    const validation = validateListingData(data);
+    if (validation.warning) {
+      showWarningModal(validation.message, validation.count);
+      return;
+    } else if (!validation.ok) {
+      toast(validation.message, validation.banned ? 5200 : 4200);
+      return;
+    }
     const id = "U-" + Date.now().toString(36).toUpperCase();
     const listing = {
       id, type, species,
@@ -1002,9 +1315,13 @@ function initFormHandlers(type) {
       condition: data.condition, custody: data.custody,
       status: "active", posted: new Date().toISOString(),
     };
-    state.listings.unshift(listing);
+    const policy = await canSubmitListing(listing);
+    if (!policy.allowed) {
+      toast(policy.reason || "Listing blocked by automated moderation.");
+      return;
+    }
     state.draft = null;
-    const matches = computeMatches(listing);
+    const matches = await computeMatches(listing);
     matches.slice(0, 5).forEach(m => {
       state.alerts.unshift({
         id: "A-" + Date.now() + "-" + m.listing.id,
@@ -1014,6 +1331,7 @@ function initFormHandlers(type) {
         read: false,
       });
     });
+    await persistListing(listing, "public");
     saveState();
     refreshAlertsBadge();
     showMatchReveal(listing, matches);
@@ -1113,7 +1431,7 @@ function showMatchReveal(listing, matches) {
             ${topMatches.map(m => html`
               <div class="match-result-card ${m.score >= 0.75 ? "high" : m.score >= 0.5 ? "medium" : ""}">
                 <div class="match-result-score">
-                  ${m.score >= 0.75 ? "🔴 HIGH" : m.score >= 0.5 ? "🟡 MEDIUM" : "🔵 LOW"}
+                  ${m.score >= 0.95 ? "🌟 PERFECT" : m.score >= 0.75 ? "🔴 HIGH" : m.score >= 0.5 ? "🟡 MEDIUM" : m.score < 0.2 ? "⚪ UNCOMMON" : "🔵 LOW"}
                   <strong>${Math.round(m.score * 100)}% match</strong>
                   <span class="match-reasons">${escapeHtml(m.reasons.join(" · "))}</span>
                 </div>
@@ -1132,6 +1450,7 @@ function showMatchReveal(listing, matches) {
                     <div class="muted" style="font-size:13px;">${escapeHtml(m.listing.location || "")} · ${fmtDate(m.listing.posted)}</div>
                     <div class="match-result-actions">
                       <a class="btn small primary" href="#/listing/${m.listing.id}" data-link>View & contact →</a>
+                      <button class="btn small" data-act="confirm-match" data-mid="${m.listing.id}">Good match</button>
                       <button class="btn small ghost" data-act="reject" data-mid="${m.listing.id}">Not a match</button>
                     </div>
                   </div>
@@ -1170,7 +1489,14 @@ function showMatchReveal(listing, matches) {
       </div>
     `;
     bindLinks();
+    $$("[data-act=confirm-match]").forEach(b => b.addEventListener("click", () => {
+      const match = topMatches.find(m => m.listing.id === b.dataset.mid);
+      if (match) trainMatchAlgorithm(listing, match.listing, true);
+      toast("Thanks. The matcher learned from that review.");
+    }));
     $$("[data-act=reject]").forEach(b => b.addEventListener("click", () => {
+      const match = topMatches.find(m => m.listing.id === b.dataset.mid);
+      if (match) trainMatchAlgorithm(listing, match.listing, false);
       b.closest(".match-result-card")?.remove();
       toast("Got it — not a match. That helps train the algorithm.");
     }));
@@ -1736,19 +2062,36 @@ function bindLinks() {
 
 // ---------- mobile nav ----------
 function openMobileNav() {
-  document.getElementById("mobile-nav").hidden = false;
-  document.getElementById("mobile-nav-overlay").hidden = false;
-  document.getElementById("hamburger").setAttribute("aria-expanded", "true");
+  const nav = document.getElementById("mobile-nav");
+  const overlay = document.getElementById("mobile-nav-overlay");
+  if (nav) {
+    nav.hidden = false;
+    nav.setAttribute("aria-hidden", "false");
+    nav.classList.add("open");
+  }
+  if (overlay) {
+    overlay.hidden = false;
+    overlay.classList.add("open");
+  }
+  document.getElementById("hamburger")?.setAttribute("aria-expanded", "true");
 }
 function closeMobileNav() {
-  document.getElementById("mobile-nav").hidden = true;
-  document.getElementById("mobile-nav-overlay").hidden = true;
-  document.getElementById("hamburger").setAttribute("aria-expanded", "false");
+  const nav = document.getElementById("mobile-nav");
+  const overlay = document.getElementById("mobile-nav-overlay");
+  nav?.classList.remove("open");
+  overlay?.classList.remove("open");
+  if (nav) {
+    nav.hidden = true;
+    nav.setAttribute("aria-hidden", "true");
+  }
+  if (overlay) overlay.hidden = true;
+  document.getElementById("hamburger")?.setAttribute("aria-expanded", "false");
 }
 
 // ---------- init ----------
 function init() {
   loadState();
+  hydrateRemoteListings();
   applyDarkMode();
   initTipBar();
   updateBodyPad();
@@ -1758,18 +2101,20 @@ function init() {
   highlightNav();
 
   // Mobile nav
-  $("#hamburger").addEventListener("click", openMobileNav);
+  $("#hamburger")?.addEventListener("click", openMobileNav);
+  $("#mobile-nav-close")?.addEventListener("click", closeMobileNav);
+  $("#mobile-nav-overlay")?.addEventListener("click", closeMobileNav);
   $$(".mobile-nav-link").forEach(a => a.addEventListener("click", closeMobileNav));
 
   // Single document-level delegation handles ALL close/dismiss buttons reliably,
   // regardless of render order, hidden attributes, or z-index stacking.
   document.addEventListener("click", e => {
     const t = e.target;
-    if (t.closest("#assistant-close"))       { closeDrawer("assistant-drawer"); return; }
-    if (t.closest("#alerts-close"))          { closeDrawer("alerts-drawer");    return; }
-    if (t.closest("#mobile-nav-close"))      { closeMobileNav();                return; }
-    if (t.closest("#mobile-nav-overlay"))    { closeMobileNav();                return; }
-    if (t.closest("#drawer-overlay"))        { closeDrawer();                   return; }
+    if (t.closest("#assistant-close"))       { e.preventDefault(); closeDrawer("assistant-drawer"); return; }
+    if (t.closest("#alerts-close"))          { e.preventDefault(); closeDrawer("alerts-drawer");    return; }
+    if (t.closest("#mobile-nav-close"))      { e.preventDefault(); closeMobileNav();                return; }
+    if (t.closest("#mobile-nav-overlay"))    { e.preventDefault(); closeMobileNav();                return; }
+    if (t.closest("#drawer-overlay"))        { e.preventDefault(); closeDrawer();                   return; }
   });
 
   // ESC key

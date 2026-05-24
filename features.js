@@ -592,11 +592,21 @@ function initShelterIntakeForm() {
     if (area) area.hidden = !e.target.checked;
   });
 
-  $("#shelter-intake-form")?.addEventListener("submit", e => {
+  $("#shelter-intake-form")?.addEventListener("submit", async e => {
     e.preventDefault();
     if (!species) { toast("Please pick a species."); return; }
     const shelterName = document.getElementById("shelter-date") ? document.getElementById("shelter-name").value.trim() : "";
     if (!shelterName) { toast("Please enter the shelter or clinic name."); return; }
+    const validation = validateListingData({
+      location: shelterName + " intake",
+      zip: document.getElementById("shelter-zip").value,
+      contact: "shelter",
+      features: document.getElementById("shelter-desc").value,
+    });
+    if (!validation.ok) {
+      toast(validation.message, validation.banned ? 5200 : 4200);
+      return;
+    }
     const id = "SH-U-" + Date.now().toString(36).toUpperCase();
     const listing = {
       id, type: "found", species,
@@ -615,11 +625,16 @@ function initShelterIntakeForm() {
         ? new Date(document.getElementById("shelter-deadline").value).toISOString()
         : null,
     };
-    state.listings.unshift(listing);
+    const policy = await canSubmitListing(listing);
+    if (!policy.allowed) {
+      toast(policy.reason || "Intake blocked by automated moderation.");
+      return;
+    }
     const matches = computeMatches(listing).slice(0, 3);
     matches.forEach(m => {
       state.alerts.unshift({ id: "A-"+Date.now()+"-"+m.listing.id, listingId: listing.id, matchId: m.listing.id, score: m.score, when: new Date().toISOString(), message: `Shelter intake match ${Math.round(m.score*100)}% — ${m.reasons.slice(0,2).join(", ")}`, read: false });
     });
+    await persistListing(listing, "shelter");
     saveState();
     refreshAlertsBadge();
     toast(`Intake recorded${matches.length ? " — " + matches.length + " possible match" + (matches.length > 1 ? "es" : "") + " found!" : "."}`);
@@ -766,6 +781,58 @@ function renderSettings() {
   $("#crisis-btn").addEventListener("click", openCrisisModal);
 }
 
+function renderAdmin() {
+  const userListings = state.listings.filter(l => l.poster?.name === "You" || l.contact);
+  $("#app").innerHTML = html`
+    <div class="section-row" style="margin-bottom:6px;">
+      <h1 style="font-size:28px; font-weight:800; letter-spacing:-.02em;">Admin</h1>
+    </div>
+    <p class="subhead">Moderate abusive submitters without removing legitimate lost-pet reports. IP-based limits are enforced by the Supabase Edge Function when configured.</p>
+
+    <div class="settings-card" style="margin-bottom:16px;">
+      <div class="setting-row">
+        <div class="setting-info">
+          <strong>Automated listing throttle</strong>
+          <p>Blocks a network after 10 listings in 30 days and records a reviewable moderation event.</p>
+        </div>
+        <span class="tag-inline ${window.PawTrailSupabase?.ready ? "found" : ""}">${window.PawTrailSupabase?.ready ? "Supabase active" : "Local fallback"}</span>
+      </div>
+    </div>
+
+    <div class="list-grid">
+      ${userListings.length ? userListings.map(l => html`
+        <div class="card">
+          <div class="row" style="justify-content:space-between; gap:10px; align-items:flex-start;">
+            <div style="min-width:0;">
+              <strong>${speciesEmoji(l.species)} ${escapeHtml(l.name || l.species || "Pet listing")}</strong>
+              <p class="muted" style="font-size:13px;">${escapeHtml(l.contact || "No public contact")} Â· ${escapeHtml(l.zip || "")} Â· ${fmtDate(l.posted)}</p>
+            </div>
+            <span class="tag-inline ${l.status === "suspended" ? "lost" : "found"}">${escapeHtml(l.status || "active")}</span>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <button class="btn small ghost admin-action" data-action="suspend" data-subject="${escapeHtml(l.contact || l.id)}">Suspend</button>
+            <button class="btn small ghost admin-action" data-action="ban" data-subject="${escapeHtml(l.contact || l.id)}" style="color:var(--lost);">Ban</button>
+            <button class="btn small admin-action" data-action="clear" data-subject="${escapeHtml(l.contact || l.id)}">Clear</button>
+          </div>
+        </div>
+      `).join("") : `<div class="empty"><div class="emoji">Admin</div>No user-submitted listings to review yet.</div>`}
+    </div>
+  `;
+
+  $$(".admin-action").forEach(btn => btn.addEventListener("click", async () => {
+    const action = btn.dataset.action;
+    const subject = btn.dataset.subject;
+    const reason = action === "clear" ? "Manual review cleared" : prompt(`Reason for ${action}?`, "Spam or abusive listing pattern");
+    if (reason === null) return;
+    try {
+      await window.PawTrailSupabase?.moderateUser(subject, action, reason);
+      toast(`Admin action recorded: ${action}.`);
+    } catch {
+      toast("Admin action saved locally only. Configure Supabase to enforce bans across devices.");
+    }
+  }));
+}
+
 // =========================================
 // Crisis callback form (PRD §4.8)
 // =========================================
@@ -858,24 +925,44 @@ function initSearchOverlay() {
   const overlay = document.getElementById("search-overlay");
   const input = document.getElementById("search-input");
   const results = document.getElementById("search-results");
+  if (!overlay) return;
 
-  document.getElementById("search-btn")?.addEventListener("click", () => {
+  const openSearch = () => {
     overlay.hidden = false;
     input?.focus();
+  };
+  const closeSearch = () => {
+    overlay.hidden = true;
+    if (input) input.value = "";
+    if (results) results.innerHTML = "";
+  };
+
+  document.getElementById("search-btn")?.addEventListener("click", () => {
+    openSearch();
   });
-  document.getElementById("search-close")?.addEventListener("click", () => { overlay.hidden = true; });
+  document.getElementById("search-close")?.addEventListener("click", closeSearch);
+  overlay.addEventListener("click", e => {
+    if (e.target === overlay) closeSearch();
+  });
+  results?.addEventListener("click", e => {
+    const link = e.target.closest("a[data-link]");
+    if (!link) return;
+    e.preventDefault();
+    closeSearch();
+    navigate(link.getAttribute("href"));
+  });
 
   document.addEventListener("keydown", e => {
     if (e.key === "/" && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
       e.preventDefault();
-      overlay.hidden = false;
-      input?.focus();
+      openSearch();
     }
-    if (e.key === "Escape" && !overlay.hidden) overlay.hidden = true;
+    if (e.key === "Escape" && !overlay.hidden) closeSearch();
   });
 
   input?.addEventListener("input", () => {
     const q = input.value.trim();
+    if (!results) return;
     if (q.length < 2) { results.innerHTML = ""; return; }
     const found = searchListings(q).slice(0, 8);
     if (!found.length) {
@@ -892,10 +979,9 @@ function initSearchOverlay() {
         <span class="tag-inline ${l.status==="reunited"?"reunited":l.type}">${l.status==="reunited"?"Reunited":l.type==="lost"?"Lost":"Found"}</span>
       </a>
     `).join("");
-    bindLinks();
     $$(".search-result-row[data-link]").forEach(a => {
       a._bound = false;
-      a.addEventListener("click", e => { e.preventDefault(); overlay.hidden = true; navigate(a.getAttribute("href")); });
+      a.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); closeSearch(); navigate(a.getAttribute("href")); });
     });
     // "See all" link
     results.innerHTML += `<a href="#/search?q=${encodeURIComponent(q)}" class="btn ghost block" style="margin:8px 12px; text-align:center;" data-link>See all results for "${escapeHtml(q)}" →</a>`;
@@ -906,20 +992,28 @@ function initSearchOverlay() {
 // PWA Install prompt (PRD §2 "low-friction")
 // =========================================
 function initPWA() {
+  let installTimer = null;
+
   // Register service worker
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
 
+  const showInstallBannerLater = () => {
+    clearTimeout(installTimer);
+    installTimer = setTimeout(() => {
+      if (state.pwaInstallDismissed || !state._installPrompt) return;
+      const banner = document.getElementById("install-banner");
+      if (banner) banner.hidden = false;
+      updateBodyPad();
+    }, 5 * 60 * 1000);
+  };
+
   // Capture install prompt
   window.addEventListener("beforeinstallprompt", e => {
     e.preventDefault();
     state._installPrompt = e;
-    if (!state.pwaInstallDismissed) {
-      const banner = document.getElementById("install-banner");
-      if (banner) banner.hidden = false;
-      updateBodyPad();
-    }
+    if (!state.pwaInstallDismissed) showInstallBannerLater();
   });
 
   document.getElementById("install-yes")?.addEventListener("click", async () => {
@@ -1025,8 +1119,8 @@ function initGShortcuts() {
 // (monkey-patch renderListingDetail to add features)
 // =========================================
 const _origDetail = renderListingDetail;
-window.renderListingDetail = function(id) {
-  _origDetail(id);
+window.renderListingDetail = async function(id) {
+  await _origDetail(id);
   // After render, patch in bookmark + stray hold badge
   const l = findListing(id);
   if (!l) return;

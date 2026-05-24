@@ -69,7 +69,7 @@
 <nav class="mobile-nav" id="mobile-nav" hidden aria-label="Mobile navigation">
   <div class="mobile-nav-head">
     <a href="#/" class="brand" data-link>🐾 PawTrail</a>
-    <button class="iconbtn" id="mobile-nav-close" aria-label="Close menu">✕</button>
+    <button class="iconbtn" id="mobile-nav-close" type="button" aria-label="Close menu">✕</button>
   </div>
   <a href="#/listings" data-link class="mobile-nav-link">🗺️ Browse listings</a>
   <a href="#/my-listings" data-link class="mobile-nav-link">📋 My listings</a>
@@ -92,7 +92,7 @@
 <div class="search-overlay" id="search-overlay" hidden>
   <div class="search-box">
     <input type="text" id="search-input" placeholder="Search by pet name, breed, neighborhood…" autocomplete="off" />
-    <button class="iconbtn" id="search-close" aria-label="Close search">✕</button>
+    <button class="iconbtn" id="search-close" type="button" aria-label="Close search">✕</button>
   </div>
   <div class="search-results" id="search-results"></div>
 </div>
@@ -199,13 +199,20 @@
   <div class="foot-bottom">
     <span>© 2026 PawTrail</span>
     <span>·</span>
-    <span>Demo — listings and names are fictional</span>
+    <span>Demo — starter examples are fictional</span>
     <span>·</span>
     <span>Built with 🧡 for pets and the people who love them</span>
   </div>
 </footer>
 
 <script src="data.js"></script>
+<script>
+window.PAWTRAIL_SUPABASE = {
+  url: "",
+  anonKey: ""
+};
+</script>
+<script src="supabase-client.js"></script>
 <script src="app.js"></script>
 <script src="features.js"></script>
 </body>

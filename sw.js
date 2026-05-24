@@ -1,6 +1,6 @@
 /* PawTrail service worker — offline-first shell caching */
-const CACHE = "pawtrail-v3";
-const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./data.js", "./features.js"];
+const CACHE = "pawtrail-v7";
+const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./data.js", "./features.js", "./supabase-client.js"];
 
 self.addEventListener("install", e => {
   e.waitUntil(
@@ -17,10 +17,18 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
-  // Network-first for API/image calls, cache-first for app shell
+  // Keep the app shell fresh during development, with cache fallback for offline use.
   const url = new URL(e.request.url);
   if (url.origin === location.origin && SHELL.some(s => url.pathname.endsWith(s.replace("./", "")))) {
-    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+    e.respondWith(
+      fetch(e.request)
+        .then(response => {
+          const copy = response.clone();
+          caches.open(CACHE).then(cache => cache.put(e.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(e.request))
+    );
   } else {
     e.respondWith(
       fetch(e.request).catch(() => caches.match(e.request))
