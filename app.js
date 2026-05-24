@@ -18,6 +18,8 @@ const state = {
   matchFeedback: [],
   settings: { email: true, sms: false, freq: "instant", paused: false, darkMode: false },
   pwaInstallDismissed: false,
+  user: null,
+  cookieConsent: null, // null = not yet decided, "full" | "essential" | "rejected"
 };
 
 const DEFAULT_MATCH_WEIGHTS = {
@@ -43,6 +45,7 @@ function loadState() {
   } catch (e) { /* ignore */ }
 }
 function saveState() {
+  if (state.cookieConsent === "rejected") return; // honour cookie rejection — no localStorage
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       listings: state.listings,
@@ -59,6 +62,8 @@ function saveState() {
       matchFeedback: state.matchFeedback,
       settings: state.settings,
       pwaInstallDismissed: state.pwaInstallDismissed,
+      user: state.user,
+      cookieConsent: state.cookieConsent,
     }));
   } catch (e) { /* quota */ }
 }
@@ -74,6 +79,302 @@ const html = (strings, ...vals) =>
 function allListings() { return [...state.listings]; }
 function allPosts() { return [...state.communityPosts, ...SEED_COMMUNITY_POSTS]; }
 function findListing(id) { return allListings().find(l => l.id === id); }
+
+// Returns listings sourced from verified shelter networks or marked as global
+function allGlobalListings() {
+  return allListings().filter(l => l.verifiedSource || l.source === "global" || l.source === "petfinder" || l.source === "shelter");
+}
+
+let _globalSort = "recent";
+
+function sortedGlobalListings() {
+  const items = [...allGlobalListings()];
+  switch (_globalSort) {
+    case "recent":  return items.sort((a, b) => new Date(b.posted || b.when || 0) - new Date(a.posted || a.when || 0));
+    case "oldest":  return items.sort((a, b) => new Date(a.posted || a.when || 0) - new Date(b.posted || b.when || 0));
+    case "breed":   return items.sort((a, b) => (a.breed || "￿").localeCompare(b.breed || "￿"));
+    case "species": return items.sort((a, b) => ({ dog: 0, cat: 1, other: 2 }[a.species] ?? 2) - ({ dog: 0, cat: 1, other: 2 }[b.species] ?? 2));
+    case "name":    return items.sort((a, b) => (a.name || "￿").localeCompare(b.name || "￿"));
+    case "shelter": return items.sort((a, b) => (a.poster?.name || "￿").localeCompare(b.poster?.name || "￿"));
+    default:        return items;
+  }
+}
+
+// Fetch real listings from Petfinder via Supabase Edge Function (or direct if key configured)
+// Fetches real stray/found animals from Austin Animal Center via Socrata open data.
+// Free, no credentials required — CORS-enabled public API.
+async function fetchPublicShelterData() {
+  const localIds = new Set(state.listings.map(l => l.id));
+  let added = 0;
+
+  // Each entry is a free public shelter API (Socrata open data — no credentials needed).
+  // Failures are caught individually so one bad endpoint never blocks the others.
+  const SHELTER_SOURCES = [
+    {
+      label: "Austin Animal Center",
+      url: "https://data.austintexas.gov/resource/wter-evkm.json?" + new URLSearchParams({
+        "$limit": "40", "$order": "datetime DESC",
+        "$where": "intake_type='STRAY' AND animal_type IN('Dog','Cat','Other')",
+      }),
+      map(a) {
+        if (!a.animal_id) return null;
+        return {
+          id: "AAC-" + a.animal_id,
+          species: { Dog: "dog", Cat: "cat" }[a.animal_type] || "other",
+          name: (a.name && a.name !== "*") ? a.name : null,
+          breed: a.breed || null, color: a.color || null, age: a.age_upon_intake || null,
+          location: "Austin Animal Center, Austin TX", zip: "78702",
+          when: a.datetime || new Date().toISOString(),
+          contact: "Austin Animal Center · (512) 978-0500",
+          poster: { name: "Austin Animal Center", initials: "AAC", neighborhood: "Austin, TX" },
+          features: [
+            a.found_location && `Found near: ${a.found_location}`,
+            a.intake_condition && `Condition: ${a.intake_condition}`,
+          ].filter(Boolean).join(" · ") || null,
+          shelterUrl: "https://www.austintexas.gov/department/aac",
+        };
+      },
+    },
+    {
+      label: "Sonoma County Animal Shelter",
+      url: "https://data.sonomacounty.ca.gov/resource/924a-vesw.json?" + new URLSearchParams({
+        "$limit": "40", "$order": "intake_date DESC",
+        "$where": "outcome_date IS NULL",
+      }),
+      map(a) {
+        const rawId = a.id || a.animal_id || a.intake_number;
+        if (!rawId) return null;
+        return {
+          id: "SCAS-" + rawId,
+          species: { Dog: "dog", Cat: "cat" }[a.type] || "other",
+          name: a.name || null,
+          breed: a.breed || null, color: a.color || null, age: a.age || null,
+          location: "Sonoma County Animal Shelter, Santa Rosa CA", zip: "95401",
+          when: a.intake_date || new Date().toISOString(),
+          contact: "Sonoma County Animal Services · (707) 565-7100",
+          poster: { name: "Sonoma County Animal Shelter", initials: "SCAS", neighborhood: "Santa Rosa, CA" },
+          features: a.intake_type ? `Intake: ${a.intake_type}` : null,
+          shelterUrl: "https://sonomacounty.ca.gov/health-and-human-services/regional-parks/animal-services",
+        };
+      },
+    },
+    {
+      label: "Long Beach Animal Care Services",
+      url: "https://data.longbeach.gov/resource/bqtq-c7na.json?" + new URLSearchParams({
+        "$limit": "40", "$order": "intake_date DESC",
+        "$where": "outcome_date IS NULL",
+      }),
+      map(a) {
+        const rawId = a.animal_id || a.id;
+        if (!rawId) return null;
+        return {
+          id: "LBACS-" + rawId,
+          species: { DOG: "dog", CAT: "cat", Dog: "dog", Cat: "cat" }[a.species || a.animal_type] || "other",
+          name: a.animal_name || a.name || null,
+          breed: a.primary_breed || a.breed || null,
+          color: a.primary_color || a.color || null, age: null,
+          location: "Long Beach Animal Care Services, Long Beach CA", zip: "90807",
+          when: a.intake_date || new Date().toISOString(),
+          contact: "Long Beach Animal Care Services · (562) 570-7387",
+          poster: { name: "Long Beach Animal Care Services", initials: "LBACS", neighborhood: "Long Beach, CA" },
+          features: a.intake_condition ? `Condition: ${a.intake_condition}` : null,
+          shelterUrl: "https://www.longbeach.gov/acs/",
+        };
+      },
+    },
+    {
+      label: "Louisville Metro Animal Services",
+      url: "https://data.louisvilleky.gov/resource/hmnn-v3x2.json?" + new URLSearchParams({
+        "$limit": "40", "$order": "intake_date DESC",
+        "$where": "outcome_date IS NULL",
+      }),
+      map(a) {
+        const rawId = a.animal_id || a.id;
+        if (!rawId) return null;
+        return {
+          id: "LMAS-" + rawId,
+          species: { Dog: "dog", Cat: "cat", DOG: "dog", CAT: "cat" }[a.species || a.animal_type] || "other",
+          name: a.animal_name || a.name || null,
+          breed: a.breed || a.primary_breed || null,
+          color: a.color || a.primary_color || null, age: a.age || null,
+          location: "Louisville Metro Animal Services, Louisville KY", zip: "40202",
+          when: a.intake_date || new Date().toISOString(),
+          contact: "Louisville Metro Animal Services · (502) 473-7387",
+          poster: { name: "Louisville Metro Animal Services", initials: "LMAS", neighborhood: "Louisville, KY" },
+          features: a.intake_type ? `Intake: ${a.intake_type}` : null,
+          shelterUrl: "https://louisvilleky.gov/government/animal-services",
+        };
+      },
+    },
+    {
+      label: "Dallas Animal Services",
+      url: "https://data.dallascityhall.com/resource/7h2m-3um5.json?" + new URLSearchParams({
+        "$limit": "40", "$order": "intake_date DESC",
+        "$where": "outcome_date IS NULL",
+      }),
+      map(a) {
+        const rawId = a.animal_id || a.id;
+        if (!rawId) return null;
+        return {
+          id: "DAS-" + rawId,
+          species: { Dog: "dog", Cat: "cat", DOG: "dog", CAT: "cat" }[a.animal_type || a.species] || "other",
+          name: a.animal_name || a.name || null,
+          breed: a.breed || a.primary_breed || null,
+          color: a.color || null, age: a.age || null,
+          location: "Dallas Animal Services, Dallas TX", zip: "75201",
+          when: a.intake_date || new Date().toISOString(),
+          contact: "Dallas Animal Services · (214) 670-8246",
+          poster: { name: "Dallas Animal Services", initials: "DAS", neighborhood: "Dallas, TX" },
+          features: a.intake_type ? `Intake: ${a.intake_type}` : null,
+          shelterUrl: "https://dallascityhall.com/departments/code/animal-services/Pages/default.aspx",
+        };
+      },
+    },
+    {
+      label: "Seattle Animal Shelter",
+      url: "https://data.seattle.gov/resource/yaai-7frk.json?" + new URLSearchParams({
+        "$limit": "40", "$order": "intake_date DESC",
+        "$where": "outcome_date IS NULL",
+      }),
+      map(a) {
+        const rawId = a.animal_id || a.id;
+        if (!rawId) return null;
+        return {
+          id: "SAS-" + rawId,
+          species: { Dog: "dog", Cat: "cat", DOG: "dog", CAT: "cat" }[a.species || a.animal_type] || "other",
+          name: a.animal_name || a.name || null,
+          breed: a.primary_breed || a.breed || null,
+          color: a.primary_color || a.color || null, age: null,
+          location: "Seattle Animal Shelter, Seattle WA", zip: "98103",
+          when: a.intake_date || new Date().toISOString(),
+          contact: "Seattle Animal Shelter · (206) 386-7387",
+          poster: { name: "Seattle Animal Shelter", initials: "SAS", neighborhood: "Seattle, WA" },
+          features: a.intake_condition ? `Condition: ${a.intake_condition}` : null,
+          shelterUrl: "https://www.seattle.gov/animal-shelter",
+        };
+      },
+    },
+    {
+      label: "RescueGroups Network",
+      url: "https://api.rescuegroups.org/v5/public/animals/search/available?" + new URLSearchParams({ "limit": "40" }),
+      extract: (raw) => Array.isArray(raw) ? raw : (raw.data || []),
+      map(a) {
+        const attrs = a.attributes || a;
+        const rawId = a.id || attrs.id;
+        if (!rawId) return null;
+        const sp = (attrs.species?.singular || attrs.species || "").toLowerCase();
+        return {
+          id: "RG-" + rawId,
+          species: sp === "dog" ? "dog" : sp === "cat" ? "cat" : "other",
+          name: attrs.name || null,
+          breed: attrs.breeds?.primary || attrs.breed || null,
+          color: attrs.colors?.primary || null, age: attrs.ageGroup || null,
+          location: [attrs.cityname, attrs.stateprovince].filter(Boolean).join(", ") || "Rescue Network",
+          zip: attrs.postalcode || null,
+          when: attrs.updatedDate || attrs.createdDate || new Date().toISOString(),
+          contact: attrs.rescueOrgEmail || attrs.email || "Via RescueGroups",
+          poster: { name: attrs.rescueName || "RescueGroups Network", initials: "RG", neighborhood: attrs.cityname || "" },
+          features: attrs.descriptionText?.replace(/<[^>]*>/g, "").slice(0, 200) || null,
+          shelterUrl: attrs.url || "https://rescuegroups.org",
+        };
+      },
+    },
+  ];
+
+  for (const src of SHELTER_SOURCES) {
+    try {
+      const res = await fetch(src.url);
+      if (!res.ok) continue;
+      const raw = await res.json();
+      const animals = src.extract ? src.extract(raw) : raw;
+      animals.forEach(a => {
+        const mapped = src.map(a);
+        if (!mapped || localIds.has(mapped.id)) return;
+        state.listings.push({
+          source: "shelter", type: "found", photo: null, size: null,
+          status: "active", posted: mapped.when, verifiedSource: true,
+          ...mapped,
+        });
+        localIds.add(mapped.id);
+        added++;
+      });
+    } catch (err) {
+      console.warn(`${src.label} fetch failed.`, err);
+    }
+  }
+
+  return added;
+}
+
+async function hydrateGlobalListings() {
+  let totalAdded = 0;
+
+  // Always fetch from free public shelter open data (no credentials needed)
+  totalAdded += await fetchPublicShelterData();
+
+  // Also pull from Supabase Edge Function if configured
+  if (window.PawTrailSupabase?.ready) {
+    try {
+      const rows = await window.PawTrailSupabase.fetchGlobalListings();
+      if (rows?.length) {
+        const localIds = new Set(state.listings.map(l => l.id));
+        const newRows = rows.filter(r => r.id && !localIds.has(r.id));
+        newRows.forEach(r => state.listings.push(r));
+        totalAdded += newRows.length;
+      }
+    } catch (err) {
+      console.warn("Global listings via Supabase failed.", err);
+    }
+  }
+
+  // Also pull from direct Petfinder if configured
+  const pf = window.PAWTRAIL_PETFINDER;
+  if (pf?.apiKey && pf?.secret) {
+    try {
+      const tokenRes = await fetch("https://api.petfinder.com/v2/oauth2/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `grant_type=client_credentials&client_id=${encodeURIComponent(pf.apiKey)}&client_secret=${encodeURIComponent(pf.secret)}`,
+      });
+      if (tokenRes.ok) {
+        const { access_token } = await tokenRes.json();
+        const animalsRes = await fetch("https://api.petfinder.com/v2/animals?status=adoptable&limit=50", {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        if (animalsRes.ok) {
+          const { animals } = await animalsRes.json();
+          const localIds = new Set(state.listings.map(l => l.id));
+          (animals || []).forEach(a => {
+            const id = "PF-" + a.id;
+            if (localIds.has(id)) return;
+            state.listings.push({
+              id, source: "petfinder", type: "found",
+              species: ({ Dog: "dog", Cat: "cat" }[a.type] || "other"),
+              name: a.name || null, breed: a.breeds?.primary || null,
+              color: a.colors?.primary || null,
+              size: ({ Small: "small", Medium: "medium", Large: "large", "Extra Large": "large" }[a.size] || null),
+              age: a.age || null, photo: a.photos?.[0]?.medium || null,
+              location: [a.contact?.address?.city, a.contact?.address?.state].filter(Boolean).join(", "),
+              zip: a.contact?.address?.postcode || null, distance: a.distance || null,
+              when: a.published_at || new Date().toISOString(),
+              contact: a.contact?.email || a.contact?.phone || "Via Petfinder",
+              poster: { name: "Petfinder Shelter", initials: "PF", neighborhood: "" },
+              features: a.description ? a.description.replace(/<[^>]*>/g, "").slice(0, 300) : null,
+              status: "active", posted: a.published_at || new Date().toISOString(),
+              verifiedSource: true, petfinderUrl: a.url || null,
+            });
+            totalAdded++;
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Petfinder direct fetch failed.", err);
+    }
+  }
+
+  if (totalAdded > 0) saveState();
+  return totalAdded;
+}
 
 function matchWeights() {
   state.matchWeights = { ...DEFAULT_MATCH_WEIGHTS, ...(state.matchWeights || {}) };
@@ -332,6 +633,9 @@ function routeRender(hash) {
 
   if (!route) return renderHome();
   if (route === "listings") return renderListings();
+  if (route === "global") return renderGlobalListings();
+  if (route === "login") return renderLogin();
+  if (route === "profile") return renderProfile();
   if (route === "lost") return renderForm("lost");
   if (route === "found") return renderForm("found");
   if (route === "about") return renderAbout();
@@ -361,9 +665,11 @@ function renderHome() {
   const recentListings = allListings()
     .filter(l => l.status === "active")
     .sort((a, b) => new Date(b.posted) - new Date(a.posted))
-    .slice(0, 8);
+    .slice(0, 24);
   const recentPosts = allPosts().slice(0, 4);
   const recentReunited = allListings().filter(l => l.status === "reunited").slice(0, 5);
+
+  showLocationCookiePrompt();
 
   $("#app").innerHTML = html`
 
@@ -564,20 +870,100 @@ function renderHome() {
   });
 }
 
+function renderGlobalListings() {
+  const SORT_OPTIONS = [
+    { key: "recent",  label: "Recent" },
+    { key: "oldest",  label: "Oldest" },
+    { key: "breed",   label: "Breed" },
+    { key: "species", label: "Species" },
+    { key: "name",    label: "Name" },
+    { key: "shelter", label: "Shelter" },
+  ];
+
+  function sortBar() {
+    return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
+      <span style="font-size:13px;color:var(--muted);font-weight:600;white-space:nowrap;">Sort by:</span>
+      ${SORT_OPTIONS.map(o => `<button class="btn small ${_globalSort === o.key ? "primary" : "ghost"}" data-sort="${o.key}">${o.label}</button>`).join("")}
+    </div>`;
+  }
+
+  function bindSort() {
+    document.querySelectorAll("[data-sort]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        _globalSort = btn.dataset.sort;
+        const grid = document.getElementById("global-grid");
+        if (grid) {
+          grid.innerHTML = sortedGlobalListings().map(listingCard).join("");
+          bindLinks();
+        }
+        document.querySelectorAll("[data-sort]").forEach(b =>
+          b.className = `btn small ${b.dataset.sort === _globalSort ? "primary" : "ghost"}`
+        );
+      });
+    });
+  }
+
+  const items = sortedGlobalListings();
+
+  $("#app").innerHTML = html`
+    <div class="section-row" style="margin-bottom:14px;">
+      <h1 style="font-size:28px; font-weight:800; letter-spacing:-.02em;">Global Verified Listings</h1>
+    </div>
+    <p class="subhead">Real pet listings from verified shelter networks and partner organizations.</p>
+
+    <div class="card" style="background:var(--found-soft); border-color:var(--found); margin-bottom:20px;">
+      <p style="margin:0; font-size:14px;">🌍 <strong>Shelter Sync Active:</strong> Listings are pulled live from verified partner shelters and adoption networks. Each one represents a real animal in shelter care.</p>
+    </div>
+
+    ${sortBar()}
+
+    ${items.length
+      ? `<div class="list-grid" id="global-grid">${items.map(listingCard).join("")}</div>`
+      : `<div class="empty" id="global-empty"><div class="emoji">🌍</div><p>Loading shelter listings…</p></div>`}
+  `;
+  bindLinks();
+  bindSort();
+
+  hydrateGlobalListings().then(added => {
+    if (!added) return;
+    const grid = document.getElementById("global-grid");
+    if (grid) {
+      grid.innerHTML = sortedGlobalListings().map(listingCard).join("");
+      bindLinks();
+    } else {
+      routeRender(location.hash);
+    }
+  });
+}
+
 // ---------- listings ----------
+
+// Returns a data-URI SVG used as the placeholder when a listing has no photo.
+// "found" shows a warm handshake+paw illustration; "lost" shows a paw+question mark.
+function photoPlaceholder(type) {
+  const found = type !== "lost";
+  const [c1, c2] = found ? ["#fce4b0", "#f5b97e"] : ["#dce8f5", "#b8cfe8"];
+  const [e1, e2] = found ? ["🤝", "🐾"] : ["🐾", "❓"];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/></linearGradient></defs><rect width="400" height="300" fill="url(%23g)"/><text x="200" y="135" font-size="96" text-anchor="middle" dominant-baseline="middle">${e1}</text><text x="200" y="235" font-size="64" text-anchor="middle" dominant-baseline="middle">${e2}</text></svg>`;
+  return "data:image/svg+xml," + encodeURIComponent(svg);
+}
+
 function listingCard(l) {
   const tagClass = l.status === "reunited" ? "reunited" : l.type;
   const tagText = l.status === "reunited" ? "Reunited" : (l.type === "lost" ? "Lost" : "Found");
   const title = l.name || (l.type === "found" ? `Found ${l.species}` : `Lost ${l.species}`);
   const meta = [l.breed, l.color, l.location].filter(Boolean).join(" · ");
+  const sourceLink = l.verifiedSource ? `<span style="color:var(--info); font-size:11px; display:block; margin-top:2px;">🔗 Source: Official Shelter Network</span>` : "";
+  const photoBg = l.photo ? escapeHtml(l.photo) : photoPlaceholder(l.type);
   return html`
     <a class="listing" href="#/listing/${l.id}" data-link>
-      <div class="photo" style="${l.photo ? `background-image:url('${escapeHtml(l.photo)}')` : ""}">
+      <div class="photo" style="background-image:url('${photoBg}')">
         <span class="tag ${tagClass}">${tagText}</span>
       </div>
       <div class="body">
         <p class="name">${speciesEmoji(l.species)} ${escapeHtml(title)}</p>
         <p class="meta">${escapeHtml(meta)}</p>
+        ${sourceLink}
         <p class="meta">${fmtDate(l.posted)} · ${l.distance ? l.distance + " mi" : "—"}</p>
       </div>
     </a>
@@ -832,23 +1218,68 @@ async function getImageSimilarity(src1, src2) {
 }
 
 function compareImages(img1, img2) {
+  const size = 16; // Increased resolution for more detail
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
-  canvas.width = 8; canvas.height = 8;
+  canvas.width = size; canvas.height = size;
+
   const getFingerprint = (img) => {
-    ctx.drawImage(img, 0, 0, 8, 8);
-    const d = ctx.getImageData(0, 0, 8, 8).data;
-    const gray = []; let avg = 0;
-    for (let i = 0; i < 64; i++) {
-      const v = (d[i*4] + d[i*4+1] + d[i*4+2]) / 3;
-      gray.push(v); avg += v;
+    ctx.drawImage(img, 0, 0, size, size);
+    const d = ctx.getImageData(0, 0, size, size).data;
+    const structure = []; 
+    const colors = [];
+    let totalLuma = 0;
+
+    for (let i = 0; i < size * size; i++) {
+      const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+      const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+      structure.push(luma);
+      colors.push([r, g, b]);
+      totalLuma += luma;
     }
-    avg /= 64; return gray.map(v => v > avg ? 1 : 0);
+
+    const avgLuma = totalLuma / (size * size);
+    return {
+      hash: structure.map(v => v > avgLuma ? 1 : 0),
+      colors: colors
+    };
   };
-  const h1 = getFingerprint(img1); const h2 = getFingerprint(img2);
-  let diff = 0;
-  for (let i = 0; i < 64; i++) if (h1[i] !== h2[i]) diff++;
-  return (64 - diff) / 64;
+
+  const f1 = getFingerprint(img1);
+  const f2 = getFingerprint(img2);
+
+  let structuralSim = 0;
+  let colorSim = 0;
+  let weightSum = 0;
+
+  for (let i = 0; i < size * size; i++) {
+    // Center-weighting: Pixels in the middle 50% are 3x more important for "main shape"
+    const x = i % size;
+    const y = Math.floor(i / size);
+    const isCenter = x > size / 4 && x < 3 * size / 4 && y > size / 4 && y < 3 * size / 4;
+    const weight = isCenter ? 3 : 1;
+    weightSum += weight;
+
+    // Structural similarity (shape)
+    if (f1.hash[i] === f2.hash[i]) structuralSim += weight;
+
+    // Color similarity (Euclidean distance in RGB space)
+    const c1 = f1.colors[i], c2 = f2.colors[i];
+    const dist = Math.sqrt(
+      Math.pow(c1[0] - c2[0], 2) +
+      Math.pow(c1[1] - c2[1], 2) +
+      Math.pow(c1[2] - c2[2], 2)
+    );
+    // Normalized color similarity (1 = same, 0 = opposite)
+    const pixelColorSim = Math.max(0, 1 - (dist / 441.67)); 
+    colorSim += pixelColorSim * weight;
+  }
+
+  const finalStructural = structuralSim / weightSum;
+  const finalColor = colorSim / weightSum;
+
+  // Both shape and color must be present for a high score
+  return (finalStructural * 0.4) + (finalColor * 0.6);
 }
 
 async function computeMatches(source) {
@@ -883,11 +1314,18 @@ async function computeMatches(source) {
     else if (hrs < 72) score += 0.04;
 
     const visualScore = await getImageSimilarity(source.photo, l.photo);
-    score += visualScore * weights.image;
-    if (visualScore > 0.7) reasons.push("strong visual match");
-    else if (visualScore > 0.4) reasons.push("similar appearance");
+    
+    // JURISDICTION LOGIC: 
+    // If visual score is very low (< 0.35), it's likely a completely different object.
+    // We apply a "Jurisdiction Multiplier" that suppresses the total score.
+    const jurisdictionMult = visualScore < 0.35 ? 0.2 : 1.0;
+    
+    let finalScore = (score + (visualScore * weights.image)) * jurisdictionMult;
 
-    return { listing: l, score: Math.min(1, score), reasons };
+    if (visualScore > 0.8) reasons.push("strong visual match");
+    else if (visualScore > 0.5) reasons.push("similar appearance");
+
+    return { listing: l, score: Math.min(1, finalScore), reasons };
   }));
   return results.filter(m => m && m.score >= 0.1).sort((a, b) => b.score - a.score);
 }
@@ -1320,7 +1758,6 @@ function initFormHandlers(type) {
       toast(policy.reason || "Listing blocked by automated moderation.");
       return;
     }
-    state.draft = null;
     const matches = await computeMatches(listing);
     matches.slice(0, 5).forEach(m => {
       state.alerts.unshift({
@@ -1781,6 +2218,94 @@ function renderHelpline() {
   bindLinks();
 }
 
+// ---------- authentication ----------
+function updateAuthUI() {
+  const link = $("#nav-auth");
+  const mLink = $("#mobile-nav-auth");
+  const label = state.user ? (state.user.email?.split("@")[0] || "Account") : "Login";
+  const href = state.user ? "#/profile" : "#/login";
+  if (link) { link.textContent = label; link.href = href; }
+  if (mLink) { mLink.textContent = "👤 " + label; mLink.href = href; }
+}
+
+function renderLogin() {
+  if (state.user) { navigate("#/profile"); return; }
+  let isSignup = false;
+  const draw = () => {
+    $("#app").innerHTML = html`
+      <div class="card" style="max-width:400px; margin:60px auto; padding:32px;">
+        <div style="text-align:center; margin-bottom:24px;">
+          <div style="font-size:40px; margin-bottom:12px;">🐾</div>
+          <h1 style="font-size:24px; font-weight:800; margin:0;">${isSignup ? "Create account" : "Welcome back"}</h1>
+          <p class="muted" style="margin-top:6px;">${isSignup ? "Join the community to track your pets." : "Log in to manage your listings."}</p>
+        </div>
+        <form id="login-form">
+          <div class="field"><label>Email address</label><input type="email" id="auth-email" required placeholder="name@example.com" /></div>
+          <div class="field"><label>Password</label><input type="password" id="auth-password" required placeholder="••••••••" minlength="6" /></div>
+          <button class="btn primary block big" type="submit" style="margin-top:8px;">${isSignup ? "Sign up" : "Log in"}</button>
+        </form>
+        <div style="text-align:center; margin-top:20px; font-size:14px;">
+          <span class="muted">${isSignup ? "Already have an account?" : "Don't have an account?"}</span>
+          <button class="btn small ghost" id="auth-toggle" style="margin-left:6px;">${isSignup ? "Log in" : "Sign up"}</button>
+        </div>
+      </div>
+    `;
+    $("#auth-toggle").addEventListener("click", () => { isSignup = !isSignup; draw(); });
+    $("#login-form").addEventListener("submit", async e => {
+      e.preventDefault();
+      const email = $("#auth-email").value;
+      const password = $("#auth-password").value;
+      try {
+        const api = window.PawTrailSupabase;
+        if (!api?.ready) throw new Error("Supabase is not configured.");
+        if (isSignup) {
+          await api.signUp(email, password);
+          toast("Signup successful! Please log in.");
+          isSignup = false; draw();
+        } else {
+          state.user = await api.signIn(email, password);
+          saveState();
+          updateAuthUI();
+          toast("Welcome back!");
+          navigate("#/my-listings");
+        }
+      } catch (err) { toast(err.message); }
+    });
+    bindLinks();
+  };
+  draw();
+}
+
+function renderProfile() {
+  if (!state.user) { navigate("#/login"); return; }
+  $("#app").innerHTML = html`
+    <div class="card" style="max-width:500px; margin:40px auto; padding:32px;">
+      <h1 style="margin:0 0 16px; font-size:24px; font-weight:800;">My Account</h1>
+      <div class="field">
+        <label>Logged in as</label>
+        <div style="padding:12px; background:var(--bg); border-radius:var(--radius-sm); border:1.5px solid var(--line);">
+          ${escapeHtml(state.user.email)}
+        </div>
+      </div>
+      <p class="muted" style="font-size:13.5px; margin-top:12px;">Your session is secured via Supabase Auth. All your listings are linked to this email.</p>
+      <hr style="margin:24px 0; border:0; border-top:1.5px solid var(--line);" />
+      <div class="row" style="gap:10px;">
+        <button class="btn block" id="logout-btn" style="flex:1;">Log out</button>
+        <a href="#/settings" class="btn block ghost" data-link style="flex:1;">Alert settings</a>
+      </div>
+    </div>
+  `;
+  $("#logout-btn").addEventListener("click", () => {
+    state.user = null;
+    localStorage.removeItem("pawtrail.auth.token");
+    saveState();
+    updateAuthUI();
+    toast("Logged out safely.");
+    navigate("#/");
+  });
+  bindLinks();
+}
+
 // ---------- reunion claim ----------
 function renderReunionClaim(id) {
   const l = findListing(id);
@@ -1825,6 +2350,47 @@ function openModal(innerHtml) {
   document.body.appendChild(back);
   back.addEventListener("click", e => { if (e.target === back) back.remove(); });
   return back;
+}
+
+function showLocationCookiePrompt() {
+  if (state.cookieConsent) return; // already decided this session or a previous visit
+  const m = openModal(html`
+    <div style="max-width:380px; padding:6px;">
+      <div style="font-size:40px; margin-bottom:10px; text-align:center;">🍪</div>
+      <h3 style="margin:0 0 8px; text-align:center;">Cookies &amp; Location</h3>
+      <p class="muted" style="font-size:14px; margin-bottom:6px;">We use cookies to save your draft reports, bookmarks, and settings between visits. Location access lets us show nearby cases first.</p>
+      <p class="muted" style="font-size:13px; margin-bottom:18px;">You can post reports and browse without either — nothing here requires an account.</p>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+        <button class="btn primary block" id="cookie-full">Accept cookies &amp; enable location</button>
+        <button class="btn block" id="cookie-essential">Accept cookies only (no location)</button>
+        <button class="btn ghost block" id="cookie-reject" style="font-size:13px; color:var(--muted);">Decline — browse this session only</button>
+      </div>
+      <p class="muted" style="font-size:11px; text-align:center;">We never sell your data. Cookies store only your own listings and preferences locally. <a href="#/about" data-link>Privacy policy</a></p>
+    </div>
+  `);
+
+  m.querySelector("#cookie-full").addEventListener("click", () => {
+    state.cookieConsent = "full";
+    saveState();
+    navigator.geolocation?.getCurrentPosition(
+      () => { toast("Location enabled. Showing nearby listings first."); routeRender(location.hash); },
+      () => { toast("Location permission denied — you can still use all features."); }
+    );
+    m.remove();
+  });
+
+  m.querySelector("#cookie-essential").addEventListener("click", () => {
+    state.cookieConsent = "essential";
+    saveState();
+    toast("Cookies accepted. Your drafts and settings will be saved.");
+    m.remove();
+  });
+
+  m.querySelector("#cookie-reject").addEventListener("click", () => {
+    state.cookieConsent = "rejected"; // in-memory only — saveState() skips when rejected
+    toast("No cookies set. Your data won't be saved between visits.", 4000);
+    m.remove();
+  });
 }
 
 function openContactModal(l) {
@@ -2092,9 +2658,11 @@ function closeMobileNav() {
 function init() {
   loadState();
   hydrateRemoteListings();
+  hydrateGlobalListings();
   applyDarkMode();
   initTipBar();
   updateBodyPad();
+  updateAuthUI();
   checkExpiredListings();
   refreshAlertsBadge();
   routeRender(location.hash || "#/");

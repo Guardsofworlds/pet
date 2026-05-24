@@ -660,13 +660,14 @@ const LOCAL_FB_GROUPS = [
 
 // ---- Shelter network ----
 const SHELTER_NETWORK = [
-  { id: "S-01", name: "Belmont Veterinary Clinic", type: "vet", phone: "(503) 555-0142", address: "1820 SE Belmont St", zip: "97214", hours: "Mon–Sat 8am–6pm", chipScan: true, holdDays: null },
-  { id: "S-02", name: "Multnomah County Animal Services", type: "shelter", phone: "(503) 988-7387", address: "1700 SE River Rd", zip: "97202", hours: "Daily 10am–5pm", chipScan: true, holdDays: 5 },
-  { id: "S-03", name: "Oregon Humane Society", type: "shelter", phone: "(503) 285-7722", address: "1067 NE Columbia Blvd", zip: "97211", hours: "Daily 11am–7pm", chipScan: true, holdDays: 7 },
-  { id: "S-04", name: "Cat Adoption Team", type: "rescue", phone: "(503) 925-8903", address: "14175 SW Galbreath Dr, Sherwood", zip: "97140", hours: "Fri–Sun 11am–5pm", chipScan: false, holdDays: null },
-  { id: "S-05", name: "Dove Lewis Emergency Animal Hospital", type: "emergency", phone: "(503) 228-7281", address: "1945 NW Pettygrove St", zip: "97209", hours: "24/7", chipScan: true, holdDays: null },
-  { id: "S-06", name: "Hillsboro Animal Control", type: "shelter", phone: "(503) 846-7041", address: "101 SE Scott St, Hillsboro", zip: "97123", hours: "Mon–Fri 8am–5pm", chipScan: true, holdDays: 3 },
-  { id: "S-07", name: "PetSmart Charities Adoption Center", type: "rescue", phone: "(503) 555-0199", address: "Various locations", zip: "972", hours: "Daily 11am–7pm", chipScan: true, holdDays: null },
+  { id: "S-01", name: "Belmont Veterinary Clinic", type: "vet", phone: "(503) 555-0142", address: "1820 SE Belmont St", zip: "97214", hours: "Mon–Sat 8am–6pm", chipScan: true, holdDays: null, url: "https://belmontvet.example" },
+  { id: "S-02", name: "Multnomah County Animal Services", type: "shelter", phone: "(503) 988-7387", address: "1700 SE River Rd", zip: "97202", hours: "Daily 10am–5pm", chipScan: true, holdDays: 5, url: "https://multco.example" },
+  { id: "S-03", name: "Oregon Humane Society", type: "shelter", phone: "(503) 285-7722", address: "1067 NE Columbia Blvd", zip: "97211", hours: "Daily 11am–7pm", chipScan: true, holdDays: 7, url: "https://oregonhumane.example" },
+  { id: "S-08", name: "Battersea Dogs & Cats Home", type: "shelter", phone: "+44 0800 001 4444", address: "London, UK", zip: "SW8 4AA", hours: "Daily 10am–4pm", chipScan: true, holdDays: 7, url: "https://battersea.org.uk" },
+  { id: "S-09", name: "Toronto Animal Services", type: "shelter", phone: "(416) 338-7297", address: "Toronto, CA", zip: "M5V 3C6", hours: "Daily 10am–6pm", chipScan: true, holdDays: 3, url: "https://toronto.ca/animals" },
+  { id: "S-04", name: "Cat Adoption Team", type: "rescue", phone: "(503) 925-8903", address: "Sherwood, OR", zip: "97140", hours: "Fri–Sun 11am–5pm", chipScan: false, holdDays: null, url: "https://catadoptionteam.example" },
+  { id: "S-05", name: "Dove Lewis Emergency Hospital", type: "emergency", phone: "(503) 228-7281", address: "1945 NW Pettygrove St", zip: "97209", hours: "24/7", chipScan: true, holdDays: null, url: "https://dovelewis.example" },
+  { id: "S-10", name: "SPA de Paris", type: "shelter", phone: "+33 1 43 80 40 66", address: "Paris, FR", zip: "75017", hours: "Daily 10am–5pm", chipScan: true, holdDays: 10, url: "https://la-spa.fr" },
 ];
 
 // ---- Microchip registries ----

@@ -48,11 +48,13 @@
   </a>
   <nav class="nav" id="nav-links">
     <a href="#/listings" data-link>Browse</a>
+    <a href="#/global" data-link>Global</a>
     <a href="#/community" data-link>Community</a>
     <a href="#/tips" data-link>Tips</a>
     <a href="#/advice" data-link>Advice</a>
     <a href="#/shelter" data-link>Shelters</a>
     <a href="#/my-listings" data-link>My Listings</a>
+    <a href="#/login" data-link id="nav-auth">Login</a>
     <button class="btn-icon" id="search-btn" title="Search" aria-label="Search">🔎</button>
     <button class="btn-icon" id="alerts-btn" title="Alerts" aria-label="Alerts">
       🔔<span class="badge" id="alerts-badge" hidden>0</span>
@@ -72,6 +74,7 @@
     <button class="iconbtn" id="mobile-nav-close" type="button" aria-label="Close menu">✕</button>
   </div>
   <a href="#/listings" data-link class="mobile-nav-link">🗺️ Browse listings</a>
+  <a href="#/global" data-link class="mobile-nav-link">🌍 Global listings</a>
   <a href="#/my-listings" data-link class="mobile-nav-link">📋 My listings</a>
   <a href="#/community" data-link class="mobile-nav-link">💬 Community</a>
   <a href="#/tips" data-link class="mobile-nav-link">💡 Tips</a>
@@ -79,6 +82,7 @@
   <a href="#/shelter" data-link class="mobile-nav-link">🏥 Shelter portal</a>
   <a href="#/settings" data-link class="mobile-nav-link">⚙️ Notification settings</a>
   <a href="#/about" data-link class="mobile-nav-link">ℹ️ About</a>
+  <a href="#/login" data-link class="mobile-nav-link" id="mobile-nav-auth">👤 Login</a>
   <a href="#/help" data-link class="mobile-nav-link">📞 Helpline directory</a>
   <div class="mobile-nav-ctas">
     <a href="#/lost" class="btn lost block" data-link>😰 I Lost a Pet</a>
@@ -207,9 +211,30 @@
 
 <script src="data.js"></script>
 <script>
+/*
+ * ── Supabase configuration ─────────────────────────────────────────────────
+ * Sign up free at https://supabase.com → create a project → Settings → API.
+ * Paste your Project URL and anon/public key below.
+ * Without these the app works fully offline (localStorage only).
+ */
 window.PAWTRAIL_SUPABASE = {
-  url: "",
-  anonKey: ""
+  url: "",       // e.g. "https://xyzxyzxyz.supabase.co"
+  anonKey: ""    // e.g. "eyJhbGc..."
+};
+
+/*
+ * ── Petfinder API configuration ────────────────────────────────────────────
+ * Register free at https://www.petfinder.com/developers/ to get a key.
+ * These credentials enable the Global Listings page to show real shelter
+ * animals from Petfinder's database of 14,000+ shelters across North America.
+ * Leave blank to skip (the global page will show manually submitted intakes only).
+ *
+ * NOTE: for production use, proxy the Petfinder OAuth token call through your
+ * Supabase Edge Function (fetch-global-listings) so the secret stays server-side.
+ */
+window.PAWTRAIL_PETFINDER = {
+  apiKey: "",    // Client ID from petfinder.com/developers
+  secret: ""     // Client Secret from petfinder.com/developers
 };
 </script>
 <script src="supabase-client.js"></script>

@@ -13,11 +13,12 @@
 
   async function request(path, options = {}) {
     if (!ready) throw new Error("Supabase is not configured.");
+    const token = localStorage.getItem("pawtrail.auth.token");
     const res = await fetch(`${cfg.url}${path}`, {
       ...options,
       headers: {
         apikey: cfg.anonKey,
-        Authorization: `Bearer ${cfg.anonKey}`,
+        Authorization: `Bearer ${token || cfg.anonKey}`,
         "Content-Type": "application/json",
         Prefer: "return=representation",
         ...(options.headers || {}),
@@ -115,6 +116,44 @@
     }));
   }
 
+  // Calls the fetch-global-listings Edge Function which proxies Petfinder / shelter APIs
+  async function fetchGlobalListings() {
+    if (!ready) return [];
+    try {
+      const rows = await request("/functions/v1/fetch-global-listings", { method: "GET" });
+      return (rows || []).map(row => ({
+        id: "SB-GLOBAL-" + (row.id || row.client_id),
+        source: "global",
+        type: row.type || "found",
+        species: row.species,
+        name: row.name,
+        breed: row.breed,
+        color: row.color,
+        size: row.size,
+        age: row.age,
+        photo: row.photo,
+        photos: row.photos || [],
+        location: row.location,
+        zip: row.zip,
+        when: row.happened_at || row.when,
+        contact: row.contact || "Via shelter network",
+        poster: row.poster || { name: "Shelter Network", initials: "SN", neighborhood: "" },
+        features: row.features,
+        reward: row.reward,
+        condition: row.condition,
+        custody: row.custody,
+        status: "active",
+        posted: row.posted_at || row.posted || new Date().toISOString(),
+        verifiedSource: true,
+        stayDeadline: row.stay_deadline || null,
+        petfinderUrl: row.petfinder_url || null,
+      }));
+    } catch (err) {
+      console.warn("fetchGlobalListings failed.", err);
+      return [];
+    }
+  }
+
   async function moderateUser(subject, action, reason) {
     if (!ready) return { stored: false, mode: "local" };
     return request("/rest/v1/moderation_actions", {
@@ -123,11 +162,39 @@
     });
   }
 
+  async function signIn(email, password) {
+    const res = await fetch(`${cfg.url}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { apikey: cfg.anonKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) throw new Error("Invalid email or password.");
+    const data = await res.json();
+    localStorage.setItem("pawtrail.auth.token", data.access_token);
+    return data.user;
+  }
+
+  async function signUp(email, password) {
+    const res = await fetch(`${cfg.url}/auth/v1/signup`, {
+      method: "POST",
+      headers: { apikey: cfg.anonKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.msg || err.message || "Signup failed.");
+    }
+    return res.json();
+  }
+
   window.PawTrailSupabase = {
     ready,
     checkListingPolicy,
     insertListing,
     fetchListings,
+    fetchGlobalListings,
     moderateUser,
+    signIn,
+    signUp,
   };
 })();
