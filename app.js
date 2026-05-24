@@ -1616,6 +1616,295 @@ function renderForm(type) {
           </div>
 
         </form>
+
+        <!-- ── Descriptive Form ─────────────────────────────────────── -->
+        <div class="card" style="margin-top:28px; border-color:var(--info);">
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+            <div style="width:40px; height:40px; border-radius:50%; background:var(--info); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">📋</div>
+            <div>
+              <strong style="font-size:16px; display:block;">Descriptive Form</strong>
+              <span class="muted" style="font-size:13px;">Optional — but greatly improves match accuracy. Add as much as you know.</span>
+            </div>
+          </div>
+
+          <form id="descriptive-form">
+
+            <!-- 1. Pet Identity -->
+            <div class="desc-section">
+              <div class="desc-section-head">🐾 Pet Identity</div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:150px;">
+                  <label>Specific animal type</label>
+                  <select id="desc-species-detail">
+                    <option value="">—</option>
+                    <optgroup label="Dogs"><option value="dog-domestic">Dog (domestic)</option></optgroup>
+                    <optgroup label="Cats"><option value="cat-domestic">Cat (domestic)</option><option value="cat-feral">Cat (feral / community)</option></optgroup>
+                    <optgroup label="Small animals"><option value="rabbit">Rabbit</option><option value="hamster">Hamster</option><option value="guinea-pig">Guinea pig</option><option value="ferret">Ferret</option><option value="rat">Rat / Mouse</option></optgroup>
+                    <optgroup label="Birds"><option value="parrot">Parrot / Parakeet</option><option value="cockatiel">Cockatiel</option><option value="dove">Dove / Pigeon</option><option value="bird-other">Other bird</option></optgroup>
+                    <optgroup label="Reptiles"><option value="lizard">Lizard / Gecko</option><option value="snake">Snake</option><option value="turtle">Turtle / Tortoise</option></optgroup>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:1; min-width:110px;">
+                  <label>Sex</label>
+                  <select id="desc-sex">
+                    <option value="">Unknown</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:1; min-width:150px;">
+                  <label>Spayed / Neutered</label>
+                  <select id="desc-fixed">
+                    <option value="">Unknown</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:2; min-width:180px;">
+                  <label>Exact breed or mix</label>
+                  <input type="text" id="desc-breed-detail" placeholder="e.g. Labrador × Australian Shepherd" />
+                </div>
+                <div class="field" style="flex:1; min-width:130px;">
+                  <label>Age (years / months)</label>
+                  <div style="display:flex; gap:6px;">
+                    <input type="number" id="desc-age-years" min="0" max="40" placeholder="Yrs" style="width:64px;" />
+                    <input type="number" id="desc-age-months" min="0" max="11" placeholder="Mo" style="width:64px;" />
+                  </div>
+                </div>
+                <div class="field" style="flex:1; min-width:130px;">
+                  <label>Approximate weight</label>
+                  <input type="text" id="desc-weight" placeholder="e.g. 45 lbs / 20 kg" />
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Appearance -->
+            <div class="desc-section">
+              <div class="desc-section-head">🎨 Appearance</div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:130px;">
+                  <label>Coat / fur length</label>
+                  <select id="desc-coat-length">
+                    <option value="">—</option>
+                    <option value="hairless">Hairless</option>
+                    <option value="short">Short</option>
+                    <option value="medium">Medium</option>
+                    <option value="long">Long / fluffy</option>
+                    <option value="curly">Curly / wavy</option>
+                    <option value="wiry">Wiry</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:1; min-width:150px;">
+                  <label>Coat pattern</label>
+                  <select id="desc-coat-pattern">
+                    <option value="">—</option>
+                    <option value="solid">Solid</option>
+                    <option value="bicolor">Bi-color</option>
+                    <option value="tricolor">Tri-color</option>
+                    <option value="tabby">Tabby / striped</option>
+                    <option value="calico">Calico</option>
+                    <option value="merle">Merle</option>
+                    <option value="brindle">Brindle</option>
+                    <option value="spotted">Spotted</option>
+                    <option value="tuxedo">Tuxedo</option>
+                    <option value="tortoiseshell">Tortoiseshell</option>
+                    <option value="pointed">Color-point (Siamese-style)</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:1; min-width:130px;">
+                  <label>Secondary / markings color</label>
+                  <select id="desc-secondary-color">
+                    <option value="">—</option>
+                    ${COLOR_OPTIONS.map(c => `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join("")}
+                  </select>
+                </div>
+              </div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:120px;">
+                  <label>Eye color</label>
+                  <select id="desc-eye-color">
+                    <option value="">—</option>
+                    <option value="brown">Brown</option>
+                    <option value="blue">Blue</option>
+                    <option value="green">Green</option>
+                    <option value="yellow">Yellow / amber</option>
+                    <option value="hazel">Hazel</option>
+                    <option value="odd">Odd-eyed (two colors)</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:1; min-width:120px;">
+                  <label>Tail</label>
+                  <select id="desc-tail">
+                    <option value="">—</option>
+                    <option value="full">Full / long</option>
+                    <option value="short">Short / bobbed</option>
+                    <option value="docked">Docked</option>
+                    <option value="curled">Curled (e.g. Shiba)</option>
+                    <option value="none">No tail</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:1; min-width:120px;">
+                  <label>Ear type</label>
+                  <select id="desc-ear-type">
+                    <option value="">—</option>
+                    <option value="upright">Upright / pointed</option>
+                    <option value="floppy">Floppy / drop</option>
+                    <option value="semi">Semi-erect</option>
+                    <option value="folded">Folded (e.g. Scottish Fold)</option>
+                    <option value="rose">Rose ear</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label>Distinctive markings</label>
+                <textarea id="desc-markings" rows="2" placeholder="e.g. White blaze on forehead, brown patch over left eye, scar on right hind leg, missing ear tip"></textarea>
+              </div>
+            </div>
+
+            <!-- 3. Identification -->
+            <div class="desc-section">
+              <div class="desc-section-head">🏷️ Identification</div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:120px;">
+                  <label>Wearing a collar?</label>
+                  <select id="desc-collar">
+                    <option value="">Unknown</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:2; min-width:200px;">
+                  <label>Collar description</label>
+                  <input type="text" id="desc-collar-desc" placeholder="e.g. Red leather with silver engraved ID tag" />
+                </div>
+              </div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:130px;">
+                  <label>Microchipped?</label>
+                  <select id="desc-microchip">
+                    <option value="">Unknown</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:2; min-width:200px;">
+                  <label>Microchip ID number</label>
+                  <input type="text" id="desc-microchip-id" placeholder="15-digit chip ID (any vet can scan for free)" maxlength="20" />
+                </div>
+              </div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:160px;">
+                  <label>License / registration tag #</label>
+                  <input type="text" id="desc-license" placeholder="e.g. City dog license number" />
+                </div>
+                <div class="field" style="flex:1; min-width:180px;">
+                  <label>Ear tip or tattoo?</label>
+                  <select id="desc-ear-tip">
+                    <option value="">No / Unknown</option>
+                    <option value="ear-tip">Ear tip (TNR / feral cat)</option>
+                    <option value="tattoo">Tattoo marking</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. Condition & Behavior -->
+            <div class="desc-section">
+              <div class="desc-section-head">🧠 Condition &amp; Behavior</div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:170px;">
+                  <label>Condition when ${isLost ? "last seen" : "found"}</label>
+                  <select id="desc-condition-detail">
+                    <option value="">—</option>
+                    <option value="healthy">Healthy / normal weight</option>
+                    <option value="thin">Thin / underweight</option>
+                    <option value="injured">Visibly injured</option>
+                    <option value="ill">Visibly ill / lethargic</option>
+                    <option value="scared">Scared / hiding</option>
+                    <option value="aggressive">Aggressive / unapproachable</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:1; min-width:160px;">
+                  <label>Temperament</label>
+                  <select id="desc-temperament">
+                    <option value="">—</option>
+                    <option value="friendly">Friendly / social</option>
+                    <option value="shy">Shy / cautious</option>
+                    <option value="timid">Timid / fearful of strangers</option>
+                    <option value="aggressive">Aggressive</option>
+                    <option value="skittish">Skittish / easily startled</option>
+                    <option value="calm">Calm / relaxed</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:150px;">
+                  <label>Responds to name?</label>
+                  <select id="desc-responds-name">
+                    <option value="">—</option>
+                    <option value="yes">Yes, comes when called</option>
+                    <option value="partial">Sometimes</option>
+                    <option value="no">No / not trained</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:1; min-width:150px;">
+                  <label>Good with strangers?</label>
+                  <select id="desc-stranger">
+                    <option value="">—</option>
+                    <option value="yes">Yes, approaches people</option>
+                    <option value="cautious">Cautious but approachable</option>
+                    <option value="no">No, avoids or growls</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label>Known fears, triggers, or habits</label>
+                <input type="text" id="desc-fears" placeholder="e.g. bolts from loud noises, very food-motivated, hides under beds" />
+              </div>
+            </div>
+
+            <!-- 5. Health -->
+            <div class="desc-section">
+              <div class="desc-section-head">❤️ Health</div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:190px;">
+                  <label>Known medical conditions</label>
+                  <input type="text" id="desc-medical" placeholder="e.g. epilepsy, diabetes, blindness, deafness" />
+                </div>
+                <div class="field" style="flex:1; min-width:190px;">
+                  <label>Medications required</label>
+                  <input type="text" id="desc-medications" placeholder="e.g. phenobarbital twice daily" />
+                </div>
+              </div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:160px;">
+                  <label>Vaccinations up to date?</label>
+                  <select id="desc-vaccinations">
+                    <option value="">Unknown</option>
+                    <option value="yes">Yes, current</option>
+                    <option value="partial">Partial / some</option>
+                    <option value="no">No / overdue</option>
+                  </select>
+                </div>
+                <div class="field" style="flex:1; min-width:160px;">
+                  <label>Last vet visit (approx)</label>
+                  <input type="month" id="desc-last-vet" />
+                </div>
+              </div>
+            </div>
+
+            <div style="border-top:1.5px solid var(--line); padding-top:16px; display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+              <button type="submit" class="btn primary">💾 Save descriptive details</button>
+              <p class="muted" style="font-size:13px; margin:0;">Saved details are included automatically when you submit the main report above.</p>
+            </div>
+
+          </form>
+        </div>
+
       </div>
 
       <!-- RIGHT: live match preview sidebar -->
@@ -1753,6 +2042,41 @@ function initFormHandlers(type) {
       condition: data.condition, custody: data.custody,
       status: "active", posted: new Date().toISOString(),
     };
+    // Merge any saved descriptive form details into the listing
+    if (state.draft?.descriptive) {
+      const d = state.draft.descriptive;
+      const lines = [
+        d.sex            && `Sex: ${d.sex}`,
+        d.fixed          && `Spayed/Neutered: ${d.fixed}`,
+        d.breedDetail    && `Breed (detail): ${d.breedDetail}`,
+        (d.ageYears || d.ageMonths) && `Age: ${[d.ageYears && d.ageYears + " yr", d.ageMonths && d.ageMonths + " mo"].filter(Boolean).join(" ")}`,
+        d.weight         && `Weight: ${d.weight}`,
+        d.coatLength     && `Coat: ${d.coatLength}`,
+        d.coatPattern    && `Pattern: ${d.coatPattern}`,
+        d.secondaryColor && `Secondary color: ${d.secondaryColor}`,
+        d.eyeColor       && `Eye color: ${d.eyeColor}`,
+        d.tail           && `Tail: ${d.tail}`,
+        d.earType        && `Ears: ${d.earType}`,
+        d.markings       && `Markings: ${d.markings}`,
+        d.collar === "yes" && (d.collarDesc ? `Collar: ${d.collarDesc}` : "Wearing a collar"),
+        d.microchip === "yes" && (d.microchipId ? `Microchip ID: ${d.microchipId}` : "Microchipped"),
+        d.license        && `License/tag: ${d.license}`,
+        d.earTip         && `Ear marking: ${d.earTip}`,
+        d.conditionDetail && `Condition: ${d.conditionDetail}`,
+        d.temperament    && `Temperament: ${d.temperament}`,
+        d.respondsName   && `Responds to name: ${d.respondsName}`,
+        d.stranger       && `With strangers: ${d.stranger}`,
+        d.fears          && `Fears/habits: ${d.fears}`,
+        d.medical        && `Medical: ${d.medical}`,
+        d.medications    && `Medications: ${d.medications}`,
+        d.vaccinations   && `Vaccinations: ${d.vaccinations}`,
+        d.lastVet        && `Last vet: ${d.lastVet}`,
+      ].filter(Boolean);
+      if (lines.length) listing.features = [listing.features, lines.join("\n")].filter(Boolean).join("\n\n");
+      if (!listing.breed && d.breedDetail) listing.breed = d.breedDetail;
+      if (!listing.age && (d.ageYears || d.ageMonths)) listing.age = [d.ageYears && d.ageYears + " yr", d.ageMonths && d.ageMonths + " mo"].filter(Boolean).join(" ");
+      listing.descriptive = d;
+    }
     const policy = await canSubmitListing(listing);
     if (!policy.allowed) {
       toast(policy.reason || "Listing blocked by automated moderation.");
@@ -1773,6 +2097,49 @@ function initFormHandlers(type) {
     refreshAlertsBadge();
     showMatchReveal(listing, matches);
   });
+
+  // Descriptive form — save details to draft so main submit picks them up
+  const descForm = document.getElementById("descriptive-form");
+  if (descForm) {
+    descForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ""; };
+      const filled = Object.fromEntries(Object.entries({
+        speciesDetail:   g("desc-species-detail"),
+        sex:             g("desc-sex"),
+        fixed:           g("desc-fixed"),
+        breedDetail:     g("desc-breed-detail"),
+        ageYears:        g("desc-age-years"),
+        ageMonths:       g("desc-age-months"),
+        weight:          g("desc-weight"),
+        coatLength:      g("desc-coat-length"),
+        coatPattern:     g("desc-coat-pattern"),
+        secondaryColor:  g("desc-secondary-color"),
+        eyeColor:        g("desc-eye-color"),
+        tail:            g("desc-tail"),
+        earType:         g("desc-ear-type"),
+        markings:        g("desc-markings"),
+        collar:          g("desc-collar"),
+        collarDesc:      g("desc-collar-desc"),
+        microchip:       g("desc-microchip"),
+        microchipId:     g("desc-microchip-id"),
+        license:         g("desc-license"),
+        earTip:          g("desc-ear-tip"),
+        conditionDetail: g("desc-condition-detail"),
+        temperament:     g("desc-temperament"),
+        respondsName:    g("desc-responds-name"),
+        stranger:        g("desc-stranger"),
+        fears:           g("desc-fears"),
+        medical:         g("desc-medical"),
+        medications:     g("desc-medications"),
+        vaccinations:    g("desc-vaccinations"),
+        lastVet:         g("desc-last-vet"),
+      }).filter(([, v]) => v));
+      state.draft = { ...(state.draft || {}), descriptive: filled };
+      saveState();
+      toast("Descriptive details saved. They'll be included when you submit the report above. ✓");
+    });
+  }
 }
 
 function updateLiveMatchBar(species, zip) {

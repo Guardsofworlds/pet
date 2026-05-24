@@ -1291,6 +1291,18 @@ section.block > h2 { font-size: clamp(18px, 3vw, 24px); font-weight: 800; letter
 .form-submit-area { text-align: center; padding-top: 8px; }
 .form-anon-note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
 
+/* Descriptive form sections */
+.desc-section { margin-bottom: 22px; }
+.desc-section-head { font-weight: 700; font-size: 14px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1.5px solid var(--line); color: var(--ink); }
+#descriptive-form .field { margin-bottom: 10px; }
+#descriptive-form .field label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--ink); }
+#descriptive-form input, #descriptive-form select, #descriptive-form textarea { width: 100%; padding: 9px 12px; border: 1.5px solid var(--line); border-radius: 8px; font-size: 14px; font-family: inherit; background: var(--bg); color: var(--ink); box-sizing: border-box; }
+#descriptive-form input:focus, #descriptive-form select:focus, #descriptive-form textarea:focus { outline: none; border-color: var(--info); box-shadow: 0 0 0 3px color-mix(in srgb, var(--info) 15%, transparent); }
+#descriptive-form textarea { resize: vertical; min-height: 68px; }
+[data-theme="dark"] #descriptive-form input,
+[data-theme="dark"] #descriptive-form select,
+[data-theme="dark"] #descriptive-form textarea { background: #2a2419; border-color: #3a3028; color: var(--ink); }
+
 /* Form sidebar */
 .form-sidebar {
   background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius);
