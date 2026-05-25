@@ -491,7 +491,7 @@ function renderShelterPortal() {
         <div class="field">
           <label>Species *</label>
           <div class="species-row" id="shelter-species-row">
-            ${["dog","cat","other"].map(s => `
+            ${["dog","cat","rabbit","bird","fish","other"].map(s => `
               <button type="button" class="species-pick" data-species="${s}">${speciesEmoji(s)} ${s[0].toUpperCase() + s.slice(1)}</button>`).join("")}
           </div>
         </div>
@@ -571,7 +571,15 @@ function initShelterIntakeForm() {
     b.addEventListener("click", () => {
       $$("#shelter-species-row .species-pick").forEach(x => x.classList.remove("active"));
       b.classList.add("active");
-      species = b.dataset.species;
+      let selected = b.dataset.species;
+      if (selected === "other") {
+        const custom = prompt("What kind of animal is it? (e.g., Hamster, Turtle, Snake)");
+        if (custom) {
+          selected = custom.toLowerCase().trim();
+          b.textContent = speciesEmoji(selected) + " " + custom;
+        }
+      }
+      species = selected;
     });
   });
 

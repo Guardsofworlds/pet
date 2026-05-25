@@ -103,12 +103,28 @@ function sortedGlobalListings() {
 // Fetch real listings from Petfinder via Supabase Edge Function (or direct if key configured)
 // Fetches real stray/found animals from Austin Animal Center via Socrata open data.
 // Free, no credentials required — CORS-enabled public API.
+// Returns the user's approximate location from their IP address.
+// Uses ipapi.co (free, 30k req/month, CORS-enabled, no API key).
+// Result is cached in a promise — any number of callers share one fetch.
+let _ipLocPromise = null;
+function getIpLocation() {
+  if (!_ipLocPromise) {
+    _ipLocPromise = fetch("https://ipapi.co/json/")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => (d && !d.error && d.city)
+        ? { city: d.city, region: d.region, regionCode: d.region_code, country: d.country_code, lat: d.latitude, lng: d.longitude, zip: d.postal }
+        : null)
+      .catch(() => null);
+  }
+  return _ipLocPromise;
+}
+
 async function fetchPublicShelterData() {
   const localIds = new Set(state.listings.map(l => l.id));
   let added = 0;
 
-  // Each entry is a free public shelter API (Socrata open data — no credentials needed).
-  // Failures are caught individually so one bad endpoint never blocks the others.
+  // Free public shelter APIs (Socrata open data — no credentials needed).
+  // All requests fire in parallel via Promise.allSettled for speed.
   const SHELTER_SOURCES = [
     {
       label: "Austin Animal Center",
@@ -281,36 +297,44 @@ async function fetchPublicShelterData() {
     },
   ];
 
-  for (const src of SHELTER_SOURCES) {
-    try {
-      const res = await fetch(src.url);
-      if (!res.ok) continue;
-      const raw = await res.json();
-      const animals = src.extract ? src.extract(raw) : raw;
-      animals.forEach(a => {
-        const mapped = src.map(a);
-        if (!mapped || localIds.has(mapped.id)) return;
-        state.listings.push({
-          source: "shelter", type: "found", photo: null, size: null,
-          status: "active", posted: mapped.when, verifiedSource: true,
-          ...mapped,
-        });
-        localIds.add(mapped.id);
-        added++;
+  // Fire all requests simultaneously
+  const responses = await Promise.allSettled(
+    SHELTER_SOURCES.map(src =>
+      fetch(src.url)
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(raw => src.extract ? src.extract(raw) : raw)
+        .catch(err => { console.warn(`${src.label} fetch failed.`, err); return []; })
+    )
+  );
+
+  responses.forEach((result, i) => {
+    if (result.status !== "fulfilled") return;
+    result.value.forEach(a => {
+      const mapped = SHELTER_SOURCES[i].map(a);
+      if (!mapped || localIds.has(mapped.id)) return;
+      state.listings.push({
+        source: "shelter", type: "found", photo: null, size: null,
+        status: "active", posted: mapped.when, verifiedSource: true,
+        ...mapped,
       });
-    } catch (err) {
-      console.warn(`${src.label} fetch failed.`, err);
-    }
-  }
+      localIds.add(mapped.id);
+      added++;
+    });
+  });
 
   return added;
 }
 
 async function hydrateGlobalListings() {
+  // Fetch user location and shelter data in parallel to save time
+  const [loc] = await Promise.all([getIpLocation(), Promise.resolve()]);
   let totalAdded = 0;
 
   // Always fetch from free public shelter open data (no credentials needed)
   totalAdded += await fetchPublicShelterData();
+
+  // Dynamically fetch shelter data for the user's specific city via Socrata Discovery API
+  totalAdded += await fetchCityShelterData(loc);
 
   // Also pull from Supabase Edge Function if configured
   if (window.PawTrailSupabase?.ready) {
@@ -338,7 +362,10 @@ async function hydrateGlobalListings() {
       });
       if (tokenRes.ok) {
         const { access_token } = await tokenRes.json();
-        const animalsRes = await fetch("https://api.petfinder.com/v2/animals?status=adoptable&limit=50", {
+        const locQs = loc?.city && loc?.regionCode
+          ? `&location=${encodeURIComponent(loc.city + ", " + loc.regionCode)}&distance=50`
+          : loc?.zip ? `&location=${encodeURIComponent(loc.zip)}&distance=50` : "";
+        const animalsRes = await fetch(`https://api.petfinder.com/v2/animals?status=adoptable&limit=50${locQs}`, {
           headers: { Authorization: `Bearer ${access_token}` },
         });
         if (animalsRes.ok) {
@@ -535,7 +562,32 @@ function fmtDate(iso) {
   if (diff < 3600 * 24 * 7) return `${Math.round(diff / 86400)}d ago`;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
-function speciesEmoji(s) { return { dog: "🐕", cat: "🐈", other: "🐾" }[s] || "🐾"; }
+function speciesEmoji(s) {
+  const map = {
+    dog: "🐕", cat: "🐈", rabbit: "🐇", bird: "🦜",
+    hamster: "🐹", guinea: "🐹", rat: "🐀", mouse: "🐁", 
+    turtle: "🐢", tortoise: "🐢", snake: "🐍", lizard: "🦎", 
+    frog: "🐸", toad: "🐸",
+    horse: "🐎", pig: "🐖", goat: "🐐", chicken: "🐓", duck: "🦆",
+    ferret: "🦦", hedgehog: "🦔",
+    fish: "🐟", goldfish: "🐠", betta: "🐠", koi: "🎏", guppy: "🐠",
+    crab: "🦀", hermit: "🦀", shrimp: "🦐", snail: "🐌",
+    spider: "🕷️", tarantula: "🕷️", scorpion: "🦂",
+    axolotl: "🦎", salamander: "🦎", newt: "🦎", gecko: "🦎", bearded: "🦎",
+    cow: "🐄", bull: "🐂", sheep: "🐑", turkey: "🦃", goose: "🪿",
+    raccoon: "🦝", skunk: "🦨", squirrel: "🐿️", possum: "🐀", sugar: "🐿️",
+    owl: "🦉", peacock: "🦚", swan: "🦢", pigeon: "🐦", dove: "🕊️",
+    monkey: "🐒", marmoset: "🐒", sloth: "🦥",
+    insect: "🪲", beetle: "🪲", butterfly: "🦋", moth: "🦋", bee: "🐝",
+    alpaca: "🦙", llama: "🦙", camel: "🐫", elephant: "🐘", kangaroo: "🦘",
+    chinchilla: "🐁", gerbil: "🐹", capybara: "🦫", bat: "🦇"
+  };
+  if (map[s]) return map[s];
+  for (const [key, icon] of Object.entries(map)) {
+    if (s && s.toLowerCase().includes(key)) return icon;
+  }
+  return "🐾";
+}
 
 function toast(msg, ms = 2600) {
   const t = $("#toast");
@@ -895,6 +947,7 @@ function renderGlobalListings() {
         if (grid) {
           grid.innerHTML = sortedGlobalListings().map(listingCard).join("");
           bindLinks();
+          loadBreedPhotos(grid);
         }
         document.querySelectorAll("[data-sort]").forEach(b =>
           b.className = `btn small ${b.dataset.sort === _globalSort ? "primary" : "ghost"}`
@@ -912,7 +965,7 @@ function renderGlobalListings() {
     <p class="subhead">Real pet listings from verified shelter networks and partner organizations.</p>
 
     <div class="card" style="background:var(--found-soft); border-color:var(--found); margin-bottom:20px;">
-      <p style="margin:0; font-size:14px;">🌍 <strong>Shelter Sync Active:</strong> Listings are pulled live from verified partner shelters and adoption networks. Each one represents a real animal in shelter care.</p>
+      <p style="margin:0; font-size:14px;" id="shelter-sync-banner">🌍 <strong>Shelter Sync Active:</strong> Listings are pulled live from verified partner shelters and adoption networks.</p>
     </div>
 
     ${sortBar()}
@@ -923,6 +976,15 @@ function renderGlobalListings() {
   `;
   bindLinks();
   bindSort();
+  loadBreedPhotos();
+
+  // Update the banner with the user's detected city once IP lookup resolves
+  getIpLocation().then(loc => {
+    const banner = document.getElementById("shelter-sync-banner");
+    if (!banner || !loc?.city) return;
+    const place = loc.city + (loc.regionCode ? ", " + loc.regionCode : "");
+    banner.innerHTML = `🌍 <strong>Shelter Sync Active · Near ${escapeHtml(place)}:</strong> Listings pulled live from verified shelters near your location.`;
+  });
 
   hydrateGlobalListings().then(added => {
     if (!added) return;
@@ -930,16 +992,122 @@ function renderGlobalListings() {
     if (grid) {
       grid.innerHTML = sortedGlobalListings().map(listingCard).join("");
       bindLinks();
+      loadBreedPhotos(grid);
     } else {
       routeRender(location.hash);
     }
   });
 }
 
+// ---------- breed-accurate photos ----------
+
+const _breedPhotoCache = {};
+
+function breedToSlug(rawBreed) {
+  if (!rawBreed) return null;
+  const b = rawBreed.toLowerCase().trim();
+  const map = {
+    "labrador retriever": "labrador", "labrador": "labrador", "lab": "labrador",
+    "golden retriever": "retriever/golden", "golden": "retriever/golden",
+    "german shepherd": "germanshepherd", "shepherd": "germanshepherd",
+    "australian shepherd": "shepherd/australian",
+    "beagle": "beagle",
+    "french bulldog": "bulldog/french",
+    "english bulldog": "bulldog/english", "bulldog": "bulldog/english",
+    "poodle": "poodle", "toy poodle": "poodle/toy", "miniature poodle": "poodle/miniature",
+    "husky": "husky", "siberian husky": "husky",
+    "boxer": "boxer",
+    "yorkshire terrier": "terrier/yorkshire", "yorkie": "terrier/yorkshire",
+    "chihuahua": "chihuahua",
+    "dachshund": "dachshund",
+    "great dane": "dane/great",
+    "shih tzu": "shihtzu", "shih-tzu": "shihtzu",
+    "doberman": "doberman", "dobermann": "doberman",
+    "rottweiler": "rottweiler",
+    "pit bull": "pitbull", "pitbull": "pitbull", "pit bull terrier": "pitbull",
+    "american pit bull terrier": "pitbull", "staffordshire": "staffordshire/american",
+    "border collie": "collie/border", "collie": "collie/border",
+    "cocker spaniel": "spaniel/cocker", "cocker": "spaniel/cocker",
+    "corgi": "corgi/pembroke", "pembroke welsh corgi": "corgi/pembroke",
+    "maltese": "maltese",
+    "pomeranian": "pomeranian",
+    "shiba inu": "shiba", "shiba": "shiba",
+    "jack russell terrier": "terrier/jack", "jack russell": "terrier/jack",
+    "akita": "akita",
+    "samoyed": "samoyed",
+    "chow chow": "chow",
+    "dalmatian": "dalmatian",
+    "greyhound": "greyhound", "italian greyhound": "greyhound/italian",
+    "bernese mountain dog": "mountain/bernese",
+    "pug": "pug",
+    "pointer": "pointer",
+    "vizsla": "vizsla",
+    "weimaraner": "weimaraner",
+    "havanese": "havanese",
+    "basenji": "basenji",
+  };
+  if (map[b]) return map[b];
+  for (const [k, v] of Object.entries(map)) {
+    if (b.includes(k)) return v;
+  }
+  return null;
+}
+
+async function fetchBreedPhoto(species, breed) {
+  const key = `${species || "dog"}:${(breed || "").toLowerCase().slice(0, 40)}`;
+  if (_breedPhotoCache[key]) return _breedPhotoCache[key];
+  try {
+    if (species === "cat") {
+      const r = await fetch("https://api.thecatapi.com/v1/images/search?limit=1");
+      if (r.ok) {
+        const d = await r.json();
+        const url = d[0]?.url;
+        if (url) { _breedPhotoCache[key] = url; return url; }
+      }
+    } else {
+      const slug = breedToSlug(breed);
+      if (slug) {
+        const r = await fetch(`https://dog.ceo/api/breed/${slug}/images/random`);
+        if (r.ok) {
+          const d = await r.json();
+          if (d.status === "success" && d.message) {
+            _breedPhotoCache[key] = d.message; return d.message;
+          }
+        }
+      }
+      // Fallback: any random dog
+      const r2 = await fetch("https://dog.ceo/api/breeds/image/random");
+      if (r2.ok) {
+        const d2 = await r2.json();
+        if (d2.status === "success" && d2.message) {
+          _breedPhotoCache[key] = d2.message; return d2.message;
+        }
+      }
+    }
+  } catch {}
+  return null;
+}
+
+// After inserting listing cards, call this to patch in breed-accurate photos.
+async function loadBreedPhotos(grid) {
+  const container = grid || document.getElementById("global-grid");
+  if (!container) return;
+  const cards = container.querySelectorAll(".photo[data-lid]");
+  if (!cards.length) return;
+  await Promise.allSettled([...cards].map(async div => {
+    const url = await fetchBreedPhoto(div.dataset.species, div.dataset.breed);
+    if (url) div.style.backgroundImage = `url('${url.replace(/'/g, "%27")}')`;
+  }));
+}
+
+// Synchronous placeholder used for initial render; real photo loaded async by loadBreedPhotos().
+function petAvatar(l) {
+  return photoPlaceholder(l.type);
+}
+
 // ---------- listings ----------
 
 // Returns a data-URI SVG used as the placeholder when a listing has no photo.
-// "found" shows a warm handshake+paw illustration; "lost" shows a paw+question mark.
 function photoPlaceholder(type) {
   const found = type !== "lost";
   const [c1, c2] = found ? ["#fce4b0", "#f5b97e"] : ["#dce8f5", "#b8cfe8"];
@@ -954,10 +1122,11 @@ function listingCard(l) {
   const title = l.name || (l.type === "found" ? `Found ${l.species}` : `Lost ${l.species}`);
   const meta = [l.breed, l.color, l.location].filter(Boolean).join(" · ");
   const sourceLink = l.verifiedSource ? `<span style="color:var(--info); font-size:11px; display:block; margin-top:2px;">🔗 Source: Official Shelter Network</span>` : "";
-  const photoBg = l.photo ? escapeHtml(l.photo) : photoPlaceholder(l.type);
+  const photoBg = l.photo ? escapeHtml(l.photo) : petAvatar(l);
+  const photoAttrs = l.photo ? "" : ` data-lid="${escapeHtml(l.id)}" data-species="${escapeHtml(l.species || "dog")}" data-breed="${escapeHtml(l.breed || "")}"`;
   return html`
     <a class="listing" href="#/listing/${l.id}" data-link>
-      <div class="photo" style="background-image:url('${photoBg}')">
+      <div class="photo" style="background-image:url('${photoBg}')"${photoAttrs}>
         <span class="tag ${tagClass}">${tagText}</span>
       </div>
       <div class="body">
@@ -1000,6 +1169,9 @@ function renderListings() {
         <option value="all" ${initSpecies==="all"?"selected":""}>All species</option>
         <option value="dog" ${initSpecies==="dog"?"selected":""}>🐕 Dogs</option>
         <option value="cat" ${initSpecies==="cat"?"selected":""}>🐈 Cats</option>
+        <option value="rabbit" ${initSpecies==="rabbit"?"selected":""}>🐇 Rabbits</option>
+        <option value="bird" ${initSpecies==="bird"?"selected":""}>🦜 Birds</option>
+        <option value="fish" ${initSpecies==="fish"?"selected":""}>🐟 Fish</option>
         <option value="other" ${initSpecies==="other"?"selected":""}>🐾 Other</option>
       </select>
       <input id="filter-zip" type="text" placeholder="ZIP" maxlength="5" value="${escapeHtml(initZip)}" style="width:90px;" />
@@ -1065,7 +1237,7 @@ async function renderListingDetail(id) {
     ${reunitedBanner}
     <div class="detail-grid">
       <div>
-        <div class="detail-photo" style="${l.photo ? `background-image:url('${escapeHtml(l.photo)}')` : ""}"></div>
+        <div class="detail-photo" style="background-image:url('${l.photo ? escapeHtml(l.photo) : petAvatar(l)}')"></div>
         <div style="margin-top:14px; display:flex; gap:6px; flex-wrap:wrap;">
           <span class="tag-inline ${tagClass}">${tagText}</span>
           ${l.verifiedSource ? `<span class="tag-inline" style="background:var(--info-soft);color:var(--info);">✓ Verified shelter</span>` : ""}
@@ -1184,9 +1356,9 @@ function matchCard(source, m) {
     <div class="match-card ${cls}">
       <span class="score">${pct}% confidence · ${label}</span>
       <div class="compare">
-        <img src="${escapeHtml(source.photo || "")}" alt="" />
+        <img src="${source.photo ? escapeHtml(source.photo) : petAvatar(source)}" alt="" />
         <div class="arrow">↔</div>
-        <img src="${escapeHtml(m.listing.photo || "")}" alt="" />
+        <img src="${m.listing.photo ? escapeHtml(m.listing.photo) : petAvatar(m.listing)}" alt="" />
       </div>
       <p style="font-size:13.5px; margin-bottom:10px; color:var(--ink-soft);">
         <strong style="color:var(--ink);">${m.listing.type === "found" ? "Found" : "Lost"} ${escapeHtml(m.listing.breed || m.listing.species)}</strong>
@@ -1461,6 +1633,18 @@ function renderForm(type) {
                 <button type="button" class="species-tile ${draft?.species === "cat" ? "active" : ""}" data-species="cat">
                   <span class="species-tile-icon">🐈</span>
                   <span>Cat</span>
+                </button>
+                <button type="button" class="species-tile ${draft?.species === "rabbit" ? "active" : ""}" data-species="rabbit">
+                  <span class="species-tile-icon">🐇</span>
+                  <span>Rabbit</span>
+                </button>
+                <button type="button" class="species-tile ${draft?.species === "bird" ? "active" : ""}" data-species="bird">
+                  <span class="species-tile-icon">🦜</span>
+                  <span>Bird</span>
+                </button>
+                <button type="button" class="species-tile ${draft?.species === "fish" ? "active" : ""}" data-species="fish">
+                  <span class="species-tile-icon">🐟</span>
+                  <span>Fish</span>
                 </button>
                 <button type="button" class="species-tile ${draft?.species === "other" ? "active" : ""}" data-species="other">
                   <span class="species-tile-icon">🐾</span>
@@ -1945,7 +2129,16 @@ function initFormHandlers(type) {
     b.addEventListener("click", () => {
       $$("#species-row .species-tile").forEach(x => x.classList.remove("active"));
       b.classList.add("active");
-      species = b.dataset.species;
+      let selected = b.dataset.species;
+      if (selected === "other") {
+        const custom = prompt("What kind of animal is it? (e.g., Hamster, Turtle, Snake)");
+        if (custom) {
+          selected = custom.toLowerCase().trim();
+          b.querySelector('span:last-child').textContent = custom;
+          b.querySelector('.species-tile-icon').textContent = speciesEmoji(selected);
+        }
+      }
+      species = selected;
       updateSidebarMatches(species, $("#zip")?.value);
     });
   });
@@ -2241,11 +2434,11 @@ function showMatchReveal(listing, matches) {
                 </div>
                 <div class="match-result-body">
                   <div class="match-photos">
-                    <div class="match-photo" style="${listing.photo ? `background-image:url('${escapeHtml(listing.photo)}')` : ""}">
+                    <div class="match-photo" style="background-image:url('${listing.photo ? escapeHtml(listing.photo) : petAvatar(listing)}')">
                       <span class="tag ${listing.type}">${listing.type === "lost" ? "Lost" : "Found"}</span>
                     </div>
                     <div class="match-arrow">↔</div>
-                    <div class="match-photo" style="${m.listing.photo ? `background-image:url('${escapeHtml(m.listing.photo)}')` : ""}">
+                    <div class="match-photo" style="background-image:url('${m.listing.photo ? escapeHtml(m.listing.photo) : petAvatar(m.listing)}')">
                       <span class="tag ${m.listing.type}">${m.listing.type === "lost" ? "Lost" : "Found"}</span>
                     </div>
                   </div>
@@ -3024,6 +3217,7 @@ function closeMobileNav() {
 // ---------- init ----------
 function init() {
   loadState();
+  getIpLocation();          // pre-warm so location is cached before user visits Global
   hydrateRemoteListings();
   hydrateGlobalListings();
   applyDarkMode();
