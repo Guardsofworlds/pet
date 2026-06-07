@@ -33,6 +33,26 @@ create table if not exists public.listings (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.community_posts (
+  id uuid primary key default gen_random_uuid(),
+  client_id text unique,
+  type text not null check (type in ('sighting', 'tip', 'question', 'reunion', 'support')),
+  content text not null,
+  author jsonb not null default '{}'::jsonb,
+  species text,
+  related_listing text,
+  reactions jsonb not null default '{}'::jsonb,
+  comments integer not null default 0,
+  pinned boolean not null default false,
+  happened_at timestamptz,
+  posted_at timestamptz not null default now(),
+  raw jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists community_posts_posted_idx
+  on public.community_posts (posted_at desc);
+
 create table if not exists public.listing_submissions (
   id uuid primary key default gen_random_uuid(),
   ip_hash text not null,
@@ -44,6 +64,17 @@ create table if not exists public.listing_submissions (
 
 create index if not exists listing_submissions_ip_created_idx
   on public.listing_submissions (ip_hash, created_at desc);
+
+create table if not exists public.post_submissions (
+  id uuid primary key default gen_random_uuid(),
+  ip_hash text not null,
+  post_id text,
+  kind text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists post_submissions_ip_created_idx
+  on public.post_submissions (ip_hash, created_at desc);
 
 create table if not exists public.moderation_subjects (
   id uuid primary key default gen_random_uuid(),
@@ -61,10 +92,20 @@ create table if not exists public.moderation_actions (
   created_at timestamptz not null default now()
 );
 
+alter table public.community_posts enable row level security;
 alter table public.listings enable row level security;
 alter table public.listing_submissions enable row level security;
+alter table public.post_submissions enable row level security;
 alter table public.moderation_subjects enable row level security;
 alter table public.moderation_actions enable row level security;
+
+create policy "Public can read community posts"
+  on public.community_posts for select
+  using (true);
+
+create policy "Public can submit community posts"
+  on public.community_posts for insert
+  with check (true);
 
 create policy "Public can read active listings"
   on public.listings for select

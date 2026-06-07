@@ -7,6 +7,7 @@ const state = {
   listings: [],
   alerts: [],
   communityPosts: [],
+  postSubmissions: [],   // ISO timestamps of this browser's own posts (local rate-limit fallback)
   reunions: 0,
   draft: null,
   tipDismissed: false,
@@ -51,6 +52,7 @@ function saveState() {
       listings: state.listings,
       alerts: state.alerts,
       communityPosts: state.communityPosts,
+      postSubmissions: state.postSubmissions,
       reunions: state.reunions,
       draft: state.draft,
       tipDismissed: state.tipDismissed,
@@ -550,6 +552,58 @@ function hydrateRemoteListings() {
       if (location.hash.split("?")[0] === "#/listings") routeRender(location.hash);
     })
     .catch(err => console.warn("Supabase listing load failed.", err));
+}
+
+const POST_DAILY_LIMIT = 20;
+
+// Local fallback limit (per browser) for when Supabase isn't configured.
+// The authoritative per-IP limit is enforced server-side by the post-guard function.
+function localPostPolicy() {
+  const since = Date.now() - 86400000; // 24-hour rolling window
+  state.postSubmissions = (state.postSubmissions || []).filter(t => new Date(t).getTime() > since);
+  if (state.postSubmissions.length >= POST_DAILY_LIMIT) {
+    return {
+      allowed: false,
+      reason: `You have reached the limit of ${POST_DAILY_LIMIT} community posts per day. Please try again tomorrow.`,
+    };
+  }
+  return { allowed: true };
+}
+
+async function canSubmitPost(post) {
+  const local = localPostPolicy();
+  if (!local.allowed) return local;
+  if (!window.PawTrailSupabase?.ready) return local;
+  const policy = await window.PawTrailSupabase.checkPostPolicy(post);
+  return policy?.allowed === false
+    ? { allowed: false, reason: policy.reason || "Posting from this network is temporarily blocked." }
+    : { allowed: true };
+}
+
+async function persistCommunityPost(post) {
+  state.communityPosts.unshift(post);
+  state.postSubmissions = state.postSubmissions || [];
+  state.postSubmissions.push(post.when || new Date().toISOString());
+  saveState();
+  if (!window.PawTrailSupabase?.ready) return;
+  try {
+    await window.PawTrailSupabase.insertCommunityPost(post);
+  } catch (err) {
+    console.warn("Supabase post save failed; kept local copy.", err);
+    toast("Posted locally. Cloud sync will retry when Supabase is available.");
+  }
+}
+
+function hydrateRemoteCommunityPosts() {
+  if (!window.PawTrailSupabase?.ready) return;
+  window.PawTrailSupabase.fetchCommunityPosts()
+    .then(rows => {
+      const localIds = new Set(state.communityPosts.map(p => p.id));
+      rows.filter(p => p.id && !localIds.has(p.id)).forEach(p => state.communityPosts.push(p));
+      saveState();
+      if (location.hash.split("?")[0] === "#/community") routeRender(location.hash);
+    })
+    .catch(err => console.warn("Supabase post load failed.", err));
 }
 
 function fmtDate(iso) {
@@ -2587,7 +2641,7 @@ function renderCommunity() {
     });
   });
 
-  $("#post-submit").addEventListener("click", () => {
+  $("#post-submit").addEventListener("click", async () => {
     const text = $("#new-post-text").value.trim();
     if (!text) { toast("Write something first."); return; }
     const name = $("#new-post-name").value.trim() || "Anonymous";
@@ -2601,8 +2655,14 @@ function renderCommunity() {
       reactions: { heart: 0, hug: 0, clap: 0, hope: 0 },
       comments: 0,
     };
-    state.communityPosts.unshift(post);
-    saveState();
+
+    const submitBtn = $("#post-submit");
+    submitBtn.disabled = true;
+    const policy = await canSubmitPost(post);
+    submitBtn.disabled = false;
+    if (!policy.allowed) { toast(policy.reason); return; }
+
+    persistCommunityPost(post);
     $("#new-post-text").value = "";
     toast("Posted to the community board.");
     $("#community-feed").insertAdjacentHTML("afterbegin", communityPostCard(post));
@@ -3219,6 +3279,7 @@ function init() {
   loadState();
   getIpLocation();          // pre-warm so location is cached before user visits Global
   hydrateRemoteListings();
+  hydrateRemoteCommunityPosts();
   hydrateGlobalListings();
   applyDarkMode();
   initTipBar();

@@ -1073,6 +1073,131 @@ function initDarkModeBtn() {
 }
 
 // =========================================
+// Calm ambient soundtrack (generative — Web Audio API)
+// No external audio files: a soft, slowly-breathing chord drone.
+// Never autoplays; only starts on an explicit user gesture.
+// =========================================
+let _audioCtx = null;
+let _audioNodes = null;
+
+function startAmbientSound() {
+  if (_audioNodes) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  const ctx = _audioCtx || (_audioCtx = new Ctx());
+  if (ctx.state === "suspended") ctx.resume();
+
+  const master = ctx.createGain();
+  master.gain.value = 0;
+  master.connect(ctx.destination);
+
+  // Warm low-pass so the tone is soft, never harsh.
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 850;
+  filter.Q.value = 0.6;
+  filter.connect(master);
+
+  // Calm, consonant chord (A2 · E3 · A3 · E4), higher notes quieter.
+  const freqs = [110.0, 164.81, 220.0, 329.63];
+  const oscs = freqs.map((f, i) => {
+    const o = ctx.createOscillator();
+    o.type = i % 2 === 0 ? "sine" : "triangle";
+    o.frequency.value = f;
+    o.detune.value = (i - 1.5) * 4; // gentle detune for warmth
+    const g = ctx.createGain();
+    g.gain.value = 0.16 / (i + 1);
+    o.connect(g);
+    g.connect(filter);
+    o.start();
+    return { o, g };
+  });
+
+  // Slow LFO (~20s cycle) gently swells the volume — a breathing feel.
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.05;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = 0.04;
+  lfo.connect(lfoGain);
+  lfoGain.connect(master.gain);
+  lfo.start();
+
+  // Fade in over 3s.
+  const now = ctx.currentTime;
+  master.gain.setValueAtTime(0, now);
+  master.gain.linearRampToValueAtTime(0.11, now + 3);
+
+  _audioNodes = { master, filter, oscs, lfo, lfoGain };
+}
+
+function stopAmbientSound() {
+  if (!_audioNodes || !_audioCtx) return;
+  const ctx = _audioCtx;
+  const { master, oscs, lfo, lfoGain } = _audioNodes;
+  const now = ctx.currentTime;
+  master.gain.cancelScheduledValues(now);
+  master.gain.setValueAtTime(master.gain.value, now);
+  master.gain.linearRampToValueAtTime(0, now + 1.5);
+  lfoGain.gain.linearRampToValueAtTime(0, now + 1.5);
+  setTimeout(() => {
+    try { oscs.forEach(({ o }) => o.stop()); lfo.stop(); } catch (e) { /* already stopped */ }
+    _audioNodes = null;
+  }, 1700);
+}
+
+function updateSoundBtn() {
+  const on = !!state.settings?.sound;
+  ["sound-btn", "mobile-sound-btn"].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.classList.toggle("active", on);
+    if (id === "sound-btn") {
+      btn.textContent = on ? "🔊" : "🔈";
+      btn.title = on ? "Calm soundtrack: on" : "Calm soundtrack: off";
+      btn.setAttribute("aria-label", on ? "Turn off calm soundtrack" : "Turn on calm soundtrack");
+    } else {
+      btn.textContent = (on ? "🔊" : "🔈") + " Calm soundtrack";
+      btn.setAttribute("aria-pressed", String(on));
+    }
+  });
+}
+
+function toggleSound() {
+  state.settings = state.settings || {};
+  state.settings.sound = !state.settings.sound;
+  saveState();
+  updateSoundBtn();
+  if (state.settings.sound) {
+    startAmbientSound();
+    toast("🎵 Calm soundtrack on");
+  } else {
+    stopAmbientSound();
+    toast("🔇 Soundtrack off");
+  }
+}
+
+function initSoundBtn() {
+  const desktop = document.getElementById("sound-btn");
+  const mobile = document.getElementById("mobile-sound-btn");
+  if (!desktop && !mobile) return;
+  updateSoundBtn();
+  desktop?.addEventListener("click", toggleSound);
+  mobile?.addEventListener("click", toggleSound);
+
+  // If the user had it on from a previous visit, resume on their first gesture
+  // (browser autoplay policy blocks audio until then).
+  if (state.settings?.sound) {
+    const resume = () => {
+      startAmbientSound();
+      document.removeEventListener("pointerdown", resume);
+      document.removeEventListener("keydown", resume);
+    };
+    document.addEventListener("pointerdown", resume);
+    document.addEventListener("keydown", resume);
+  }
+}
+
+// =========================================
 // Keyboard shortcut overlay ("?")
 // =========================================
 function initKeyboardShortcuts() {
@@ -1165,6 +1290,7 @@ function initFeatures() {
   initPWA();
   initKeyboardShortcuts();
   initGShortcuts();
+  initSoundBtn();
 }
 
 // Hook into DOMContentLoaded (app.js already has one; features.js adds its own)

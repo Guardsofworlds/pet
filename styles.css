@@ -166,6 +166,10 @@ img { max-width: 100%; height: auto; display: block; }
   line-height: 1;
 }
 .btn-icon:hover { background: var(--brand-soft); }
+.btn-icon.active { background: var(--brand-soft); }
+#sound-btn.active { animation: sound-pulse 2.4s ease-in-out infinite; }
+@keyframes sound-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+.mobile-nav-link.active { color: var(--brand); font-weight: 600; }
 .badge {
   position: absolute;
   top: 0; right: 0;

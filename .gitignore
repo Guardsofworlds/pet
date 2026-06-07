@@ -1,0 +1,16 @@
+# Secrets / local env — never commit real Supabase keys
+.env
+.env.*
+*.local
+supabase/.env
+
+# Dependencies / build
+node_modules/
+dist/
+.vercel/
+.netlify/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log

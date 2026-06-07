@@ -1,5 +1,5 @@
 /* PawTrail service worker — offline-first shell caching */
-const CACHE = "pawtrail-v7";
+const CACHE = "pawtrail-v8";
 const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./data.js", "./features.js", "./supabase-client.js"];
 
 self.addEventListener("install", e => {

@@ -154,6 +154,60 @@
     }
   }
 
+  async function checkPostPolicy(post) {
+    if (!ready) return { allowed: true, mode: "local" };
+    try {
+      const result = await request("/functions/v1/post-guard", {
+        method: "POST",
+        body: JSON.stringify({ postId: post.id, kind: post.type }),
+      });
+      return result || { allowed: true };
+    } catch (err) {
+      console.warn("Post policy check failed; using local fallback.", err);
+      return { allowed: true, mode: "fallback" };
+    }
+  }
+
+  async function insertCommunityPost(post) {
+    if (!ready) return { stored: false, mode: "local" };
+    const payload = {
+      client_id: post.id,
+      type: post.type,
+      content: post.content,
+      author: post.author || {},
+      species: post.species || null,
+      related_listing: post.relatedListing || null,
+      reactions: post.reactions || {},
+      comments: post.comments || 0,
+      pinned: Boolean(post.pinned),
+      happened_at: post.when,
+      posted_at: post.when || new Date().toISOString(),
+      raw: post,
+    };
+    return request("/rest/v1/community_posts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async function fetchCommunityPosts() {
+    if (!ready) return [];
+    const rows = await request("/rest/v1/community_posts?select=*&order=posted_at.desc&limit=200");
+    return (rows || []).map(row => ({
+      ...(row.raw || {}),
+      id: row.client_id || row.id,
+      type: row.type,
+      content: row.content,
+      author: row.author || {},
+      species: row.species,
+      relatedListing: row.related_listing,
+      reactions: row.reactions || { heart: 0, hug: 0, clap: 0, hope: 0 },
+      comments: row.comments || 0,
+      pinned: row.pinned,
+      when: row.happened_at || row.posted_at,
+    }));
+  }
+
   async function moderateUser(subject, action, reason) {
     if (!ready) return { stored: false, mode: "local" };
     return request("/rest/v1/moderation_actions", {
@@ -193,6 +247,9 @@
     insertListing,
     fetchListings,
     fetchGlobalListings,
+    checkPostPolicy,
+    insertCommunityPost,
+    fetchCommunityPosts,
     moderateUser,
     signIn,
     signUp,
