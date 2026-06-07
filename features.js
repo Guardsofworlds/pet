@@ -441,37 +441,56 @@ function doShareWizard(channel, l, customText) {
 // =========================================
 // Shelter Portal (PRD §4.10)
 // =========================================
+// Generates a banner illustration for a shelter card from its described type + name.
+function shelterImageSVG(s) {
+  const palette = {
+    vet:       ["#1aa0b4", "#136f7e"],
+    shelter:   ["#5a8fec", "#2561c8"],
+    rescue:    ["#46c790", "#2d9b6c"],
+    emergency: ["#f0604f", "#c8281a"],
+  };
+  const [c1, c2] = palette[s.type] || ["#f3b27a", "#e87c2e"];
+  const icon = { vet: "🏥", shelter: "🏠", rescue: "🤝", emergency: "🚨" }[s.type] || "🐾";
+  const svg =
+`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 150">
+<defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
+<rect width="400" height="150" fill="url(#b)"/>
+<circle cx="350" cy="20" r="80" fill="#ffffff" opacity="0.10"/>
+<circle cx="40" cy="140" r="60" fill="#000000" opacity="0.07"/>
+<text x="200" y="80" font-size="64" text-anchor="middle" dominant-baseline="central">${icon}</text>
+</svg>`;
+  return "data:image/svg+xml," + encodeURIComponent(svg);
+}
+
 function renderShelterPortal() {
   const shelterIntakes = allListings().filter(l => l.verifiedSource && l.shelterId);
 
   $("#app").innerHTML = html`
-    <div class="section-row" style="margin-bottom:6px;">
+    <div class="section-row" style="margin-bottom:4px;">
       <h1 style="font-size:28px; font-weight:800; letter-spacing:-.02em;">Shelter Portal</h1>
-      <span class="tag-inline" style="background:var(--info-soft);color:var(--info);">v1.0 — Read-only at launch</span>
     </div>
-    <p class="subhead">Partner shelter and vet intake records — matched automatically against Lost listings. Shelter workers do nothing extra.</p>
+    <p class="subhead">Partner shelter &amp; vet intake records, matched automatically against Lost listings.</p>
 
-    <div class="card" style="background:var(--info-soft); border-color:#c0d4f0; margin-bottom:22px;">
-      <h3 style="margin:0 0 6px; font-size:16px;">ℹ️ How shelter integration works</h3>
-      <p style="font-size:14px; margin:0; color:var(--ink-soft);">PawTrail pulls intake records from PetPoint and Shelterluv (the two largest shelter management systems). Shelters that don't use these systems can submit intakes manually using the form below. All intake records appear in the matching pipeline with a verified-source badge.</p>
-    </div>
-
-    <!-- Partner shelters -->
-    <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">Partner shelters & clinics</h2>
+    <!-- Partner shelters (lead content) -->
+    <h2 style="font-size:20px; font-weight:700; margin:18px 0 12px;">Partner shelters &amp; clinics</h2>
     <div class="shelter-grid">
       ${SHELTER_NETWORK.map(s => html`
         <div class="shelter-card">
-          <div class="shelter-type-badge ${s.type}">${{ vet:"🏥 Vet", shelter:"🏠 Shelter", rescue:"🤝 Rescue", emergency:"🚨 Emergency" }[s.type]}</div>
-          <h3 style="margin:8px 0 4px; font-size:16px;">${escapeHtml(s.name)}</h3>
-          <p class="muted" style="font-size:13px; margin:0 0 8px;">${escapeHtml(s.address)}</p>
-          <div class="shelter-meta">
-            <span>${escapeHtml(s.hours)}</span>
-            ${s.chipScan ? `<span class="chip-badge">✓ Chip scan</span>` : ""}
-            ${s.holdDays ? `<span class="hold-badge">Hold: ${s.holdDays} days</span>` : ""}
+          <div class="shelter-banner" style="background-image:url('${shelterImageSVG(s)}')">
+            <span class="shelter-type-badge ${s.type}">${{ vet:"Vet", shelter:"Shelter", rescue:"Rescue", emergency:"Emergency" }[s.type]}</span>
           </div>
-          <div class="row" style="margin-top:10px; gap:6px;">
-            ${s.phone ? `<a href="tel:${s.phone}" class="btn small">${escapeHtml(s.phone)}</a>` : ""}
-            <a href="#/listings?shelter=${s.id}" class="btn small primary" data-link>View intakes</a>
+          <div class="shelter-card-body">
+            <h3 style="margin:0 0 2px; font-size:16px;">${escapeHtml(s.name)}</h3>
+            <p class="muted" style="font-size:13px; margin:0 0 8px;">${escapeHtml(s.address)}</p>
+            <div class="shelter-meta">
+              <span>${escapeHtml(s.hours)}</span>
+              ${s.chipScan ? `<span class="chip-badge">✓ Chip scan</span>` : ""}
+              ${s.holdDays ? `<span class="hold-badge">Hold: ${s.holdDays} days</span>` : ""}
+            </div>
+            <div class="row" style="margin-top:10px; gap:6px;">
+              ${s.phone ? `<a href="tel:${s.phone}" class="btn small">${escapeHtml(s.phone)}</a>` : ""}
+              <a href="#/listings?shelter=${s.id}" class="btn small primary" data-link>View intakes</a>
+            </div>
           </div>
         </div>
       `).join("")}
@@ -483,10 +502,15 @@ function renderShelterPortal() {
       <div class="list-grid">${shelterIntakes.map(l => listingCard(l)).join("")}</div>
     ` : ""}
 
-    <!-- Manual intake form -->
-    <h2 style="font-size:20px; font-weight:700; margin:28px 0 12px;">Submit a manual intake</h2>
-    <p class="subhead">For shelters not on PetPoint or Shelterluv. Four fields. Submit takes under a minute.</p>
-    <div class="card" style="max-width:560px;">
+    <!-- Secondary content tucked into disclosures to keep the page calm -->
+    <details class="portal-disclosure">
+      <summary>ℹ️ How shelter integration works</summary>
+      <p style="font-size:14px; margin:10px 0 0; color:var(--ink-soft);">PawTrail pulls intake records from PetPoint and Shelterluv (the two largest shelter management systems). Shelters that don't use these systems can submit intakes manually below. All intake records appear in the matching pipeline with a verified-source badge.</p>
+    </details>
+
+    <details class="portal-disclosure">
+      <summary>➕ Submit a manual intake</summary>
+      <p class="subhead" style="margin-top:10px;">For shelters not on PetPoint or Shelterluv. A few fields, under a minute.</p>
       <form id="shelter-intake-form">
         <div class="field">
           <label>Species *</label>
@@ -541,13 +565,14 @@ function renderShelterPortal() {
           <div class="hint">Max 500 rows per upload. Rows are matched against active Lost listings immediately.</div>
         </div>
       </form>
-    </div>
+    </details>
 
     <!-- Microchip registry links -->
-    <h2 style="font-size:20px; font-weight:700; margin:28px 0 12px;">Microchip registry quick links</h2>
-    <p class="subhead">Scan every intake for a chip. If found, look up ownership in these registries — most are free.</p>
-    <div class="chip-registry-grid">
-      ${CHIP_REGISTRIES.map(r => html`
+    <details class="portal-disclosure">
+      <summary>🔎 Microchip registry quick links</summary>
+      <p class="subhead" style="margin-top:10px;">Scan every intake for a chip, then look up ownership in these registries — most are free.</p>
+      <div class="chip-registry-grid">
+        ${CHIP_REGISTRIES.map(r => html`
         <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
           <div>
             <div style="font-weight:700; font-size:15px;">${escapeHtml(r.name)}</div>
@@ -555,8 +580,9 @@ function renderShelterPortal() {
           </div>
           <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" class="btn small primary">Look up chip →</a>
         </div>
-      `).join("")}
-    </div>
+        `).join("")}
+      </div>
+    </details>
   `;
 
   bindLinks();

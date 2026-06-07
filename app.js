@@ -1154,19 +1154,52 @@ async function loadBreedPhotos(grid) {
   }));
 }
 
-// Synchronous placeholder used for initial render; real photo loaded async by loadBreedPhotos().
+// Generates a unique illustrated image for a pet from its description
+// (species + color + name + breed). Pure SVG data-URI: no network, no files, offline-safe.
 function petAvatar(l) {
-  return photoPlaceholder(l.type);
+  return generatePetSVG(l || {});
 }
 
 // ---------- listings ----------
 
-// Returns a data-URI SVG used as the placeholder when a listing has no photo.
-function photoPlaceholder(type) {
-  const found = type !== "lost";
-  const [c1, c2] = found ? ["#fce4b0", "#f5b97e"] : ["#dce8f5", "#b8cfe8"];
-  const [e1, e2] = found ? ["🤝", "🐾"] : ["🐾", "❓"];
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/></linearGradient></defs><rect width="400" height="300" fill="url(%23g)"/><text x="200" y="135" font-size="96" text-anchor="middle" dominant-baseline="middle">${e1}</text><text x="200" y="235" font-size="64" text-anchor="middle" dominant-baseline="middle">${e2}</text></svg>`;
+// Maps a described coat colour to a gradient pair. Falls back to the warm brand tone.
+function petImageColors(color) {
+  const map = {
+    black:    ["#4a4a4a", "#1f1f1f"],
+    white:    ["#fbfbfb", "#dadada"],
+    brown:    ["#8a5a32", "#5e3a1e"],
+    tan:      ["#e8c98f", "#d09a52"],
+    gray:     ["#bdbdbd", "#8c8c8c"],
+    grey:     ["#bdbdbd", "#8c8c8c"],
+    orange:   ["#f5a84e", "#e8792e"],
+    tricolor: ["#e8c98f", "#3a3a3a"],
+    brindle:  ["#6e5230", "#33271a"],
+    cream:    ["#f6e7c8", "#e6cf9c"],
+    golden:   ["#f3c460", "#e08e2c"],
+  };
+  const key = String(color || "").toLowerCase().split(/[\s,/&]+/)[0];
+  return map[key] || ["#f3b27a", "#e87c2e"];
+}
+
+// Returns a data-URI SVG illustration built from the listing's described traits.
+function generatePetSVG(l) {
+  const [c1, c2] = petImageColors(l.color);
+  const emoji = speciesEmoji(l.species);
+  const name = l.name || (l.type === "found" ? "Found pet" : "Lost pet");
+  const sub = [l.breed, l.color].filter(Boolean).join(" · ");
+  const xml = s => String(s ?? "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const svg =
+`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
+<rect width="400" height="300" fill="url(#g)"/>
+<circle cx="338" cy="58" r="130" fill="#ffffff" opacity="0.08"/>
+<circle cx="70" cy="250" r="90" fill="#000000" opacity="0.06"/>
+<circle cx="200" cy="124" r="76" fill="#ffffff" opacity="0.85"/>
+<text x="200" y="126" font-size="84" text-anchor="middle" dominant-baseline="central">${emoji}</text>
+<rect x="0" y="231" width="400" height="69" fill="#000000" opacity="0.34"/>
+<text x="200" y="258" font-size="26" font-family="system-ui,Segoe UI,Arial,sans-serif" font-weight="700" fill="#ffffff" text-anchor="middle">${xml(name)}</text>
+${sub ? `<text x="200" y="284" font-size="15" font-family="system-ui,Segoe UI,Arial,sans-serif" fill="#ffffff" opacity="0.88" text-anchor="middle">${xml(sub)}</text>` : ""}
+</svg>`;
   return "data:image/svg+xml," + encodeURIComponent(svg);
 }
 
@@ -1177,10 +1210,9 @@ function listingCard(l) {
   const meta = [l.breed, l.color, l.location].filter(Boolean).join(" · ");
   const sourceLink = l.verifiedSource ? `<span style="color:var(--info); font-size:11px; display:block; margin-top:2px;">🔗 Source: Official Shelter Network</span>` : "";
   const photoBg = l.photo ? escapeHtml(l.photo) : petAvatar(l);
-  const photoAttrs = l.photo ? "" : ` data-lid="${escapeHtml(l.id)}" data-species="${escapeHtml(l.species || "dog")}" data-breed="${escapeHtml(l.breed || "")}"`;
   return html`
     <a class="listing" href="#/listing/${l.id}" data-link>
-      <div class="photo" style="background-image:url('${photoBg}')"${photoAttrs}>
+      <div class="photo" style="background-image:url('${photoBg}')">
         <span class="tag ${tagClass}">${tagText}</span>
       </div>
       <div class="body">

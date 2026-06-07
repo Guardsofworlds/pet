@@ -1584,22 +1584,56 @@ section.block > h2 { font-size: clamp(18px, 3vw, 24px); font-weight: 800; letter
   background: var(--surface);
   border: 1.5px solid var(--line);
   border-radius: var(--radius);
-  padding: 16px;
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
+  transition: box-shadow .15s, transform .15s;
 }
+.shelter-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.shelter-banner {
+  height: 96px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+.shelter-banner .shelter-type-badge { position: absolute; top: 10px; left: 10px; }
+.shelter-card-body { padding: 14px 16px 16px; }
 .shelter-type-badge {
   display: inline-block;
   padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
   text-transform: uppercase; letter-spacing: .05em;
+  background: rgba(255,255,255,.92); color: #333; box-shadow: var(--shadow-sm);
 }
-.shelter-type-badge.vet { background: var(--found-soft); color: var(--found); }
-.shelter-type-badge.shelter { background: var(--info-soft); color: var(--info); }
-.shelter-type-badge.rescue { background: var(--purple-soft); color: var(--purple); }
-.shelter-type-badge.emergency { background: var(--lost-soft); color: var(--lost); }
+.shelter-type-badge.vet { color: var(--found); }
+.shelter-type-badge.shelter { color: var(--info); }
+.shelter-type-badge.rescue { color: var(--purple); }
+.shelter-type-badge.emergency { color: var(--lost); }
 .shelter-meta { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0; font-size: 13px; color: var(--muted); }
 .chip-badge { background: var(--found-soft); color: var(--found); padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
 .hold-badge { background: var(--warn-soft); color: var(--warn); padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
 .chip-registry-grid { display: grid; gap: 10px; }
+
+/* Collapsible secondary sections — keep the portal calm */
+.portal-disclosure {
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin-top: 14px;
+  padding: 0 16px;
+}
+.portal-disclosure > summary {
+  list-style: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 14px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.portal-disclosure > summary::-webkit-details-marker { display: none; }
+.portal-disclosure > summary::after { content: "▾"; color: var(--muted); transition: transform .15s; }
+.portal-disclosure[open] > summary::after { transform: rotate(180deg); }
+.portal-disclosure[open] { padding-bottom: 18px; }
 
 /* =========================================
    Settings page
