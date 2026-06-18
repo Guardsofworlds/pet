@@ -58,8 +58,153 @@ function daysAgo(d) { return hoursAgo(d * 24); }
 
 function L(o) { return { id: o.id, ...o }; }
 
+/* ── Demo listings ──────────────────────────────────────────────────────────
+ * Curated sample cases so the site is lively for demos and first-run visitors.
+ * All names and contacts are fictional. To ship a true blank slate, empty this
+ * array (and SHELTER_LISTINGS / SEED_COMMUNITY_POSTS below).
+ *
+ * Designed to showcase the matching pipeline: three lost/found pairs share a
+ * photo + breed + color + ZIP so they surface as high-confidence matches.
+ *   • Rusty (lost) ↔ Found golden retriever  — Riverbend, 73104   [strong]
+ *   • Smokey (lost) ↔ Found gray cat         — Eastdale, 73110    [strong]
+ *   • Mochi (lost)  ↔ Found orange kitten    — Maple Heights, 73106
+ */
 const SEED_LISTINGS = [
-  // Active listings cleared to ensure a clean slate for new users.
+  // ── Active LOST ──────────────────────────────────────────────────────────
+  {
+    id: "L-1001", type: "lost", species: "dog", name: "Rusty",
+    breed: "Golden Retriever", color: "golden", size: "large", age: "3 years",
+    photo: PHOTOS.dog[3], location: "Riverbend, near Hollow Creek Park", zip: "73104",
+    distance: 0.6, when: hoursAgo(5), posted: hoursAgo(5),
+    contact: "relay+rusty@pawtrail.app", reward: "$250",
+    poster: PROFILES[0],
+    features: "Slipped out the back gate during a delivery. Friendly, food-motivated, answers to Rusty. Faded blue collar, no tags. Slight limp in his left back leg.",
+    status: "active",
+  },
+  {
+    id: "L-1002", type: "lost", species: "cat", name: "Mochi",
+    breed: "Domestic Shorthair", color: "orange tabby", size: "small", age: "2 years",
+    photo: PHOTOS.cat[1], location: "Maple Heights, Sycamore St", zip: "73106",
+    distance: 1.2, when: hoursAgo(22), posted: hoursAgo(22),
+    contact: "relay+mochi@pawtrail.app",
+    poster: PROFILES[1],
+    features: "Indoor cat, very shy, will likely hide. White mitten on front right paw. Microchipped.",
+    status: "active",
+  },
+  {
+    id: "L-1003", type: "lost", species: "dog", name: "Cooper",
+    breed: "Beagle", color: "tricolor", size: "medium", age: "5 years",
+    photo: PHOTOS.dog[6], location: "Old Town, by the farmers market", zip: "73107",
+    distance: 2.1, when: daysAgo(2), posted: daysAgo(2),
+    contact: "relay+cooper@pawtrail.app", reward: "$100",
+    poster: PROFILES[2],
+    features: "Bolted after fireworks. Loud bay, follows his nose. Red harness. Gentle with kids.",
+    status: "active",
+  },
+  {
+    id: "L-1004", type: "lost", species: "cat", name: "Smokey",
+    breed: "Domestic Shorthair", color: "gray", size: "medium", age: "4 years",
+    photo: PHOTOS.cat[5], location: "Eastdale, Birchwood Ave", zip: "73110",
+    distance: 3.4, when: hoursAgo(14), posted: hoursAgo(14),
+    contact: "relay+smokey@pawtrail.app",
+    poster: PROFILES[6],
+    features: "Solid gray, green eyes, notch in left ear. Skittish around strangers but loves churu treats.",
+    status: "active",
+  },
+  {
+    id: "L-1005", type: "lost", species: "dog", name: "Biscuit",
+    breed: "Labrador mix", color: "tan", size: "large", age: "6 years",
+    photo: PHOTOS.dog[4], location: "Westbrook, near the reservoir trail", zip: "73120",
+    distance: 4.0, when: daysAgo(3), posted: daysAgo(3),
+    contact: "relay+biscuit@pawtrail.app",
+    poster: PROFILES[3],
+    features: "Senior dog, slightly gray muzzle. Wears a faded green collar. May be tired and thirsty — please offer water.",
+    status: "active",
+  },
+  {
+    id: "L-1006", type: "lost", species: "other", name: "Kiwi",
+    breed: "Green-cheek conure", color: "green", size: "small", age: "1 year",
+    photo: PHOTOS.other[1], location: "Sunset Park, Almond Ct", zip: "73108",
+    distance: 1.8, when: daysAgo(1), posted: daysAgo(1),
+    contact: "relay+kiwi@pawtrail.app",
+    poster: PROFILES[4],
+    features: "Flew out an open window. Whistles the first notes of 'Happy Birthday'. Bright green with an orange chest. Likely staying high in trees.",
+    status: "active",
+  },
+
+  // ── Active FOUND ─────────────────────────────────────────────────────────
+  {
+    id: "L-1007", type: "found", species: "dog", name: null,
+    breed: "Golden Retriever", color: "golden", size: "large", age: "adult",
+    photo: PHOTOS.dog[3], location: "Riverbend, found on Hollow Creek Dr", zip: "73104",
+    distance: 0.9, when: hoursAgo(3), posted: hoursAgo(3),
+    contact: "relay+finder7@pawtrail.app", condition: "healthy", custody: "I have the pet",
+    poster: PROFILES[1],
+    features: "Found a friendly golden retriever wandering near the park. No tags. Walks with a slight limp. Safe at my place — give me a shout if he's yours.",
+    status: "active",
+  },
+  {
+    id: "L-1008", type: "found", species: "cat", name: null,
+    breed: "Domestic Shorthair", color: "gray", size: "medium", age: "adult",
+    photo: PHOTOS.cat[5], location: "Eastdale, under a porch on Birchwood Ave", zip: "73110",
+    distance: 3.1, when: hoursAgo(8), posted: hoursAgo(8),
+    contact: "relay+finder8@pawtrail.app", condition: "scared", custody: "I have the pet",
+    poster: PROFILES[7],
+    features: "Gray cat hiding under my porch for two days. Green eyes, little notch in one ear. Got it inside with some tuna. Very sweet once it warms up.",
+    status: "active",
+  },
+  {
+    id: "L-1009", type: "found", species: "cat", name: null,
+    breed: "Domestic Shorthair", color: "orange", size: "small", age: "young",
+    photo: PHOTOS.cat[1], location: "Maple Heights, Sycamore St", zip: "73106",
+    distance: 1.5, when: hoursAgo(18), posted: hoursAgo(18),
+    contact: "relay+finder9@pawtrail.app", condition: "healthy", custody: "I have the pet",
+    poster: PROFILES[9],
+    features: "Small orange cat showed up on my step, white front paw. Looks well cared-for — someone is missing this one.",
+    status: "active",
+  },
+  {
+    id: "L-1010", type: "found", species: "dog", name: null,
+    breed: "Terrier mix", color: "white", size: "small", age: "adult",
+    photo: PHOTOS.dog[1], location: "Crestline, near Oakridge Elementary", zip: "73130",
+    distance: 5.2, when: hoursAgo(6), posted: hoursAgo(6),
+    contact: "relay+finder10@pawtrail.app", condition: "healthy", custody: "left it where I found it",
+    poster: PROFILES[8],
+    features: "Little white terrier hanging around the schoolyard. Friendly but wouldn't let me catch it. Still in the area as of this morning.",
+    status: "active",
+  },
+
+  // ── Reunited (social proof; shows under the Reunited filter) ──────────────
+  {
+    id: "L-1011", type: "lost", species: "cat", name: "Pumpkin",
+    breed: "Domestic Shorthair", color: "orange", size: "small", age: "3 years",
+    photo: PHOTOS.cat[3], location: "Linden Park", zip: "73112",
+    distance: 2.4, when: daysAgo(5), posted: daysAgo(5),
+    contact: "relay+pumpkin@pawtrail.app",
+    poster: PROFILES[9],
+    features: "Reunited after a neighbor spotted her under their deck. Home safe!",
+    status: "reunited", reunitedAt: hoursAgo(8),
+  },
+  {
+    id: "L-1012", type: "lost", species: "dog", name: "Rufus",
+    breed: "Shepherd mix", color: "black and tan", size: "large", age: "4 years",
+    photo: PHOTOS.dog[2], location: "Maple Heights", zip: "73106",
+    distance: 1.1, when: daysAgo(2), posted: daysAgo(2),
+    contact: "relay+rufus@pawtrail.app",
+    poster: PROFILES[3],
+    features: "A Found report matched within minutes — home the same night.",
+    status: "reunited", reunitedAt: daysAgo(1),
+  },
+  {
+    id: "L-1013", type: "lost", species: "dog", name: "Maple",
+    breed: "Border Collie", color: "black and white", size: "medium", age: "2 years",
+    photo: PHOTOS.dog[5], location: "Old Town", zip: "73107",
+    distance: 3.0, when: daysAgo(4), posted: daysAgo(4),
+    contact: "relay+maple@pawtrail.app",
+    poster: PROFILES[2],
+    features: "Found two miles from home thanks to a shelter intake alert. Reunited!",
+    status: "reunited", reunitedAt: daysAgo(2),
+  },
 ];
 
 const RECENT_REUNIONS = [
@@ -113,148 +258,199 @@ const TESTIMONIALS = [
   },
 ];
 
-// Community posts — cleared for a clean slate. Real posts come from users.
-const SEED_COMMUNITY_POSTS = [];
+// Community board — sample neighbor posts so the board is lively for demos.
+// All fictional; empty this array for a true blank slate.
+const SEED_COMMUNITY_POSTS = [
+  {
+    id: "CP-001", type: "tip", pinned: true,
+    author: { name: "PawTrail Team", initials: "PT", neighborhood: "Moderator", avatarColor: AVATAR_COLORS[0] },
+    content: "Welcome, neighbors!  Use this board to share sightings, post reunions, ask questions, and support each other. One rule: never send money to someone claiming to have your pet — real finders don't ask for it. Stay kind, stay safe.",
+    when: daysAgo(6),
+    reactions: { heart: 41, hug: 6, clap: 12, hope: 4 }, comments: 3,
+  },
+  {
+    id: "CP-002", type: "sighting", relatedListing: "L-1001",
+    author: { name: "Tomás Velasco", initials: "TV", neighborhood: "Riverbend", avatarColor: AVATAR_COLORS[5] },
+    content: "Saw a golden retriever trotting along Hollow Creek Dr around 7:30 this morning — no collar tags, seemed a little lost but friendly. Couldn't catch him before he headed toward the park. Hope this helps whoever's looking!",
+    when: hoursAgo(4),
+    reactions: { heart: 18, hug: 2, clap: 3, hope: 9 }, comments: 5,
+  },
+  {
+    id: "CP-003", type: "reunion",
+    author: { name: "Rachel Dunn", initials: "RD", neighborhood: "Linden Park", avatarColor: AVATAR_COLORS[3] },
+    content: "PUMPKIN IS HOME  A neighbor two streets over found her hiding under their deck and the match alert woke me up at 3am. We were reunited before sunrise. I will never stop recommending this. Thank you to everyone who shared her post.",
+    when: hoursAgo(8),
+    reactions: { heart: 96, hug: 14, clap: 33, hope: 7 }, comments: 12,
+  },
+  {
+    id: "CP-004", type: "question",
+    author: { name: "Hannah Becker", initials: "HB", neighborhood: "Rosewood", avatarColor: AVATAR_COLORS[6] },
+    content: "Our indoor cat got out last night and we're frantic. Do they usually stay close? This is our first time dealing with this and any advice helps. ",
+    when: hoursAgo(11),
+    reactions: { heart: 7, hug: 22, clap: 0, hope: 15 }, comments: 8,
+  },
+  {
+    id: "CP-005", type: "tip",
+    author: { name: "Priya Subramanian", initials: "PS", neighborhood: "Old Town", avatarColor: AVATAR_COLORS[2] },
+    content: "For scared indoor cats: they almost always hide silently within a few houses for the first 2–3 days — they don't run far. Search at dawn and dusk when it's quiet, bring a flashlight (eyes reflect), and set out their litter box outside. The familiar scent pulls them home.",
+    when: hoursAgo(10),
+    reactions: { heart: 54, hug: 1, clap: 19, hope: 8 }, comments: 4,
+  },
+  {
+    id: "CP-006", type: "support",
+    author: { name: "Sam Ortiz", initials: "SO", neighborhood: "Crestline", avatarColor: AVATAR_COLORS[7] },
+    content: "To everyone searching right now — don't give up. We found our boy on day four after we'd nearly lost hope. Pets are found later than you'd think. Keep posting, keep walking the neighborhood, keep your porch light on. ",
+    when: daysAgo(1),
+    reactions: { heart: 63, hug: 11, clap: 7, hope: 28 }, comments: 6,
+  },
+  {
+    id: "CP-007", type: "sighting",
+    author: { name: "Kenji Tanaka", initials: "KT", neighborhood: "Harbor Hill", avatarColor: AVATAR_COLORS[4] },
+    content: "Heads up — loose small white terrier near Oakridge Elementary, darting around the playground fence. Friendly but wouldn't let me get close. Animal control's been called; sharing in case it's someone's here.",
+    when: hoursAgo(5),
+    reactions: { heart: 11, hug: 0, clap: 2, hope: 6 }, comments: 2,
+  },
+];
 
 // Tips — short, actionable, categorized
 const TIPS = [
   // First hours
   {
-    id: "T-01", category: "first-hours", icon: "🏃",
+    id: "T-01", category: "first-hours", icon: "zap",
     title: "Walk the area immediately",
     text: "Do a quiet, calm loop around where you last saw your pet. Don't run or call frantically — that pushes scared animals further away. Walk slowly, crouching low.",
   },
   {
-    id: "T-02", category: "first-hours", icon: "🧀",
+    id: "T-02", category: "first-hours", icon: "home",
     title: "Bring smelly food, not just their name",
     text: "A frightened pet may not respond to their name. Rotisserie chicken, hot dogs, or tuna — strong food smells can lure them out when nothing else works.",
   },
   {
-    id: "T-03", category: "first-hours", icon: "📱",
+    id: "T-03", category: "first-hours", icon: "smartphone",
     title: "Post immediately, fill details later",
     text: "Submit a listing with just the basics. The matching pipeline starts the moment you hit submit. You can add breed, color, and photos after — don't wait to get it perfect.",
   },
   {
-    id: "T-04", category: "first-hours", icon: "🚪",
+    id: "T-04", category: "first-hours", icon: "home",
     title: "Tell neighbors in person",
     text: "In-person knocking beats notes on doors. People who promise to 'keep an eye out' when you look them in the eye actually do it.",
   },
   {
-    id: "T-05", category: "first-hours", icon: "📞",
+    id: "T-05", category: "first-hours", icon: "phone",
     title: "Call shelters, don't email",
     text: "Shelter staff handle huge volumes of email. A phone call to a specific person gets your pet in their head. Ask: 'May I come in person to look?' Shelters regularly mis-tag breed and color.",
   },
   {
-    id: "T-06", category: "first-hours", icon: "📡",
+    id: "T-06", category: "first-hours", icon: "broadcast",
     title: "Update your microchip contact info right now",
     text: "Log in to HomeAgain, AKC Reunite, or 24PetWatch and confirm your phone number is current. An outdated chip helps no one.",
   },
   // Search strategy
   {
-    id: "T-07", category: "search", icon: "🔦",
+    id: "T-07", category: "search", icon: "search",
     title: "Search for cats at night",
     text: "Cats hide during the day and move at dawn/dusk. Search low places — under decks, sheds, cars, and in dense bushes — with a flashlight after dark. Look for eye-shine.",
   },
   {
-    id: "T-08", category: "search", icon: "🛤️",
+    id: "T-08", category: "search", icon: "map",
     title: "Dogs travel in straight lines",
     text: "A scared dog often runs in one direction until something stops them — a fence, a road, or a kind stranger. Search in a widening arc from the escape point.",
   },
   {
-    id: "T-09", category: "search", icon: "🎥",
+    id: "T-09", category: "search", icon: "camera",
     title: "Ask about doorbell cameras",
     text: "Ask every neighbor: 'Do you have a Ring or camera facing the street?' Footage from the night of the escape often shows exactly which direction the pet went.",
   },
   {
-    id: "T-10", category: "search", icon: "📪",
+    id: "T-10", category: "search", icon: "mail",
     title: "Hand flyers to mail carriers personally",
     text: "Your mail carrier walks every block on your street, every day. They notice animals. Hand them a flyer in person and ask them to call if they spot anything.",
   },
   {
-    id: "T-11", category: "search", icon: "🚗",
+    id: "T-11", category: "search", icon: "map",
     title: "Drive slowly with windows down",
     text: "Drive a 3–5 mile radius slowly with your windows down, calling in a calm, happy voice. A familiar voice from a car often reaches a hiding dog when foot searches don't.",
   },
   {
-    id: "T-12", category: "search", icon: "📷",
+    id: "T-12", category: "search", icon: "camera",
     title: "Set a wildlife camera at home base",
     text: "Point a camera at the food and clothing you've left outside. Many owners see their cat visiting at 3am in the footage — then they set a trap, and catch them the next night.",
   },
   // Found pet tips
   {
-    id: "T-13", category: "found", icon: "🤲",
+    id: "T-13", category: "found", icon: "heart",
     title: "Approach low and sideways",
     text: "Don't run toward a stray. Crouch down, look away, and let them come to you. Tossing treats toward them (not at them) while staying still is the fastest way to gain trust.",
   },
   {
-    id: "T-14", category: "found", icon: "💉",
+    id: "T-14", category: "found", icon: "building",
     title: "Get a free chip scan",
     text: "Any vet, shelter, or PetSmart will scan for a microchip for free in under a minute. About 60% of lost dogs and 5–10% of lost cats have a chip.",
   },
   {
-    id: "T-15", category: "found", icon: "📸",
+    id: "T-15", category: "found", icon: "camera",
     title: "Hold back one detail",
     text: "Don't post every marking publicly. Keep one specific detail — a scar, a unique paw pattern, a chip number — private so you can verify the real owner.",
   },
   {
-    id: "T-16", category: "found", icon: "🏠",
+    id: "T-16", category: "found", icon: "home",
     title: "Check nearby houses first",
     text: "Most strays come from within 3–5 houses of where you found them. Knock on doors in a small radius before driving around the whole neighborhood.",
   },
   {
-    id: "T-17", category: "found", icon: "🏥",
+    id: "T-17", category: "found", icon: "building",
     title: "You don't have to take them to a shelter",
     text: "In most US jurisdictions you can keep a found animal safely at home while searching for the owner. Shelters are stressful and have stay deadlines. Foster first if you can.",
   },
   // Prevention
   {
-    id: "T-18", category: "prevention", icon: "🏷️",
+    id: "T-18", category: "prevention", icon: "tag",
     title: "Keep ID tags current after any move",
     text: "Your phone number on the tag is the fastest path to reunion — faster than a chip scan. Update it every time you move or change numbers.",
   },
   {
-    id: "T-19", category: "prevention", icon: "🔒",
+    id: "T-19", category: "prevention", icon: "lock",
     title: "Check your fence before every outing",
     text: "Most dog escapes happen through the same weak spot repeatedly. Do a fence walk at the start of each season. Look for boards that move, gaps at grade, and unlatched gates.",
   },
   {
-    id: "T-20", category: "prevention", icon: "📂",
+    id: "T-20", category: "prevention", icon: "folder",
     title: "Keep recent photos of your pet",
     text: "Store a set of current, clear photos of your pet (face, full body, unique markings) in your phone's cloud backup. You'll need them the moment they go missing.",
   },
   {
-    id: "T-21", category: "prevention", icon: "🐾",
+    id: "T-21", category: "prevention", icon: "paw",
     title: "Microchip and register, both",
     text: "A chip does nothing without registration. After chipping, register in all three major databases (HomeAgain, AKC Reunite, 24PetWatch) for maximum coverage.",
   },
   {
-    id: "T-22", category: "prevention", icon: "🎆",
+    id: "T-22", category: "prevention", icon: "shield",
     title: "Secure pets before fireworks and storms",
     text: "More pets go missing on July 4th than any other day of the year. Confine them indoors, with a white noise machine, hours before any anticipated loud event.",
   },
   // Scam safety
   {
-    id: "T-23", category: "scam-safety", icon: "🚨",
+    id: "T-23", category: "scam-safety", icon: "alert-triangle",
     title: "Never pay before reunion",
     text: "Real finders don't ask for shipping fees, deposits, or gift cards. If anyone asks for money before you have your pet in your arms, it's a scam. Full stop.",
   },
   {
-    id: "T-24", category: "scam-safety", icon: "📸",
+    id: "T-24", category: "scam-safety", icon: "camera",
     title: "Ask for a fresh photo",
     text: "If someone claims to have your pet, ask for a fresh photo that includes something specific you didn't post publicly — 'a photo next to today's newspaper' or 'a photo of her belly markings.'",
   },
   {
-    id: "T-25", category: "scam-safety", icon: "📍",
+    id: "T-25", category: "scam-safety", icon: "map-pin",
     title: "Insist on a public meeting place",
     text: "Never go alone to meet someone from a listing. Meet at a vet office, police station parking lot, or busy coffee shop. Bring a friend.",
   },
   {
-    id: "T-26", category: "scam-safety", icon: "☎️",
+    id: "T-26", category: "scam-safety", icon: "phone",
     title: "Be suspicious of out-of-area numbers",
     text: "If your pet went missing in Portland but the person claiming to have them has a Miami area code — that's a red flag. Scammers target listings and call from spoofed numbers.",
   },
   {
-    id: "T-27", category: "scam-safety", icon: "🔐",
+    id: "T-27", category: "scam-safety", icon: "lock",
     title: "Use PawTrail's relay for all communication",
     text: "Never share your home address, workplace, or personal phone via social media. Use the relay system so your contact info stays private until you verify the finder.",
   },
@@ -283,7 +479,7 @@ const ARTICLES = [
   {
     id: "first-24-hours",
     flagship: true,
-    icon: "⏱️",
+    icon: "clock",
     title: "First 24 Hours After Losing a Pet",
     summary: "The single most important checklist. Most reunions happen within the first day — what you do in the next hour matters most.",
     body: `<p class="lede">Take a breath. Most lost pets stay within 1–5 miles of where they slipped away, and most reunions happen in the first 24 hours. Here is exactly what to do, in order.</p>
@@ -316,7 +512,7 @@ const ARTICLES = [
   },
   {
     id: "search-strategy",
-    icon: "🔍",
+    icon: "search",
     title: "How to Search: Cats vs. Dogs",
     summary: "Cats and dogs behave very differently when lost. Searching the wrong way wastes the critical first hours.",
     body: `<p class="lede">Treating a missing cat like a missing dog is the most common mistake — and it's why people search for days in the wrong place.</p>
@@ -342,7 +538,7 @@ const ARTICLES = [
   },
   {
     id: "flyers",
-    icon: "📄",
+    icon: "file-text",
     title: "Make a Flyer People Will Actually Read",
     summary: "Most lost-pet flyers are useless. Here's the proven format, and how to use the auto-generated PawTrail flyer.",
     body: `<p class="lede">A passing driver has 2 seconds to read your flyer. Treat it like a billboard, not a memo.</p>
@@ -368,7 +564,7 @@ const ARTICLES = [
   },
   {
     id: "scams",
-    icon: "🛡️",
+    icon: "shield",
     title: "Scam Awareness: 'I Have Your Pet' Extortion",
     summary: "If your contact info is on a listing, scammers will message. Here's what they say and how to spot real finders.",
     body: `<p class="lede">Within hours of posting a lost pet, you may receive messages from people pretending to have your pet. Their goal is money. Here's how to spot them.</p>
@@ -394,7 +590,7 @@ const ARTICLES = [
   },
   {
     id: "found-pet",
-    icon: "🤝",
+    icon: "heart",
     title: "I Found a Stray — What Do I Do?",
     summary: "You don't have to take it to a shelter, and you don't need to keep it forever. A 90-second guide.",
     body: `<p class="lede">First, thank you. Most strays you see have an owner looking for them right now.</p>
@@ -418,7 +614,7 @@ const ARTICLES = [
   },
   {
     id: "scent",
-    icon: "👕",
+    icon: "search",
     title: "Using Scent to Bring a Pet Home",
     summary: "Scent is the single most underused tool for cats and small dogs hiding nearby. Costs nothing.",
     body: `<p class="lede">Pets navigate the world through their nose. A familiar scent can pull a hiding cat back into your yard from blocks away.</p>
@@ -438,7 +634,7 @@ const ARTICLES = [
   },
   {
     id: "neighbors",
-    icon: "🚪",
+    icon: "home",
     title: "Talking to Neighbors, Mail Carriers, and Drivers",
     summary: "These people see your block more than you do. They are your highest-leverage allies.",
     body: `<p class="lede">Three groups will solve your case faster than any algorithm: your immediate neighbors, your mail carrier, and the delivery drivers in your area.</p>
@@ -461,7 +657,7 @@ const ARTICLES = [
   },
   {
     id: "shelters",
-    icon: "🏥",
+    icon: "building",
     title: "Working With Shelters, Vets, and Animal Control",
     summary: "What to ask, who to call, and how often. Don't rely on shelter websites — go in person.",
     body: `<p class="lede">Shelters are overwhelmed. Their websites are often a week out of date. The single most effective thing you can do is visit in person every 48 hours.</p>
@@ -485,7 +681,7 @@ const ARTICLES = [
   },
   {
     id: "emotional",
-    icon: "💛",
+    icon: "heart",
     title: "When the Search Drags On: Caring for Yourself",
     summary: "Day three is harder than day one. Sleep, eat, and don't catastrophize. Most pets are still found.",
     body: `<p class="lede">If you've been searching for more than 48 hours, your body is running on adrenaline and your brain is convinced of the worst. Both of those are lying to you.</p>
@@ -515,7 +711,7 @@ const ARTICLES = [
   },
   {
     id: "injured",
-    icon: "🚑",
+    icon: "alert-triangle",
     title: "I Found an Injured Animal",
     summary: "Specific steps for a hurt stray. Stay calm, protect yourself, get them to care.",
     body: `<p class="lede">An injured animal is in pain and scared, which means even a friendly pet may bite. Your first priority is your safety; the second is theirs.</p>
@@ -582,7 +778,26 @@ const CHIP_REGISTRIES = [
 
 // ---- Additional shelter intake listings ----
 const SHELTER_LISTINGS = [
-  // Shelter intake listings cleared for fresh user experience.
+  {
+    id: "SH-2001", type: "found", species: "dog", name: "Intake #4471",
+    breed: "Labrador Retriever", color: "black", size: "large", age: "adult",
+    photo: PHOTOS.dog[7], location: "Belmont Animal Shelter", zip: "73105",
+    distance: 2.7, when: hoursAgo(20), posted: hoursAgo(20),
+    contact: "Belmont Animal Shelter · (555) 010-4471",
+    poster: { name: "Belmont Animal Shelter", initials: "BS", neighborhood: "Belmont" },
+    features: "Brought in as a stray by animal control. Scanning for microchip. Healthy, good with handlers. Stray hold ends in 3 days.",
+    status: "active", source: "shelter", verifiedSource: true,
+  },
+  {
+    id: "SH-2002", type: "found", species: "cat", name: "Intake #4472",
+    breed: "Domestic Shorthair", color: "tuxedo black and white", size: "medium", age: "adult",
+    photo: PHOTOS.cat[2], location: "Riverside Humane Society", zip: "73109",
+    distance: 4.5, when: daysAgo(1), posted: daysAgo(1),
+    contact: "Riverside Humane Society · (555) 010-2200",
+    poster: { name: "Riverside Humane Society", initials: "RH", neighborhood: "Riverside" },
+    features: "Found near the highway underpass. Friendly, litter-trained. No chip detected. Available to reclaim with proof of ownership.",
+    status: "active", source: "shelter", verifiedSource: true,
+  },
 ];
 
 // Merge shelter listings into SEED_LISTINGS

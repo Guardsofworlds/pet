@@ -10,8 +10,10 @@ function toggleDarkMode() {
   applyDarkMode();
   saveState();
   const btn = $("#darkmode-btn");
-  if (btn) btn.title = state.settings.darkMode ? "Switch to light mode" : "Toggle dark mode";
-  btn.textContent = state.settings.darkMode ? "☀️" : "🌙";
+  if (btn) {
+    btn.title = state.settings.darkMode ? "Switch to light mode" : "Toggle dark mode";
+    btn.innerHTML = state.settings.darkMode ? icon('sun') : icon('moon');
+  }
 }
 
 // =========================================
@@ -59,7 +61,7 @@ function generateShareCard(listing, cb) {
   // Banner text
   ctx.fillStyle = "white";
   ctx.font = "bold 52px system-ui, -apple-system, sans-serif";
-  ctx.fillText(isLost ? "🔴  LOST PET" : "🟢  FOUND PET", 30, 63);
+  ctx.fillText(isLost ? "LOST PET" : "FOUND PET", 30, 63);
 
   // Pet name
   ctx.fillStyle = "#1f1a14";
@@ -74,12 +76,12 @@ function generateShareCard(listing, cb) {
 
   ctx.fillStyle = "#1f1a14";
   ctx.font = "21px system-ui, -apple-system, sans-serif";
-  ctx.fillText("📍  " + (listing.location || "See listing for details"), 30, 232);
+  ctx.fillText(listing.location || "See listing for details", 30, 232);
 
   if (listing.reward) {
     ctx.fillStyle = "#b87800";
     ctx.font = "bold 21px system-ui, -apple-system, sans-serif";
-    ctx.fillText(`💰  Reward $${listing.reward} offered`, 30, 268);
+    ctx.fillText(`Reward $${listing.reward} offered`, 30, 268);
   }
 
   // QR placeholder box
@@ -98,7 +100,7 @@ function generateShareCard(listing, cb) {
   ctx.fillRect(0, 370, 800, 50);
   ctx.fillStyle = "#4a4135";
   ctx.font = "17px system-ui, -apple-system, sans-serif";
-  ctx.fillText(`🐾  pawtrail.example/listing/${listing.id}`, 24, 401);
+  ctx.fillText(`pawtrail.example/listing/${listing.id}`, 24, 401);
 
   // PawTrail brand
   ctx.fillStyle = "#e87c2e";
@@ -130,11 +132,19 @@ function generateShareCard(listing, cb) {
 // =========================================
 // My Listings (PRD §4.2, §4.4)
 // =========================================
-function renderMyListings() {
+async function renderMyListings() {
   const myListings = state.listings;
   const bookmarked = (state.bookmarks || [])
     .map(id => findListing(id))
     .filter(Boolean);
+
+  // computeMatches is async — resolve the match counts up front so the cards
+  // can render a real number instead of "undefined".
+  const matchCounts = {};
+  await Promise.all(myListings.map(async l => {
+    try { matchCounts[l.id] = (await computeMatches(l)).length; }
+    catch { matchCounts[l.id] = 0; }
+  }));
 
   $("#app").innerHTML = html`
     <div class="section-row" style="margin-bottom:6px;">
@@ -148,7 +158,7 @@ function renderMyListings() {
 
     ${myListings.length === 0 ? html`
       <div class="card" style="text-align:center; padding:40px 20px; margin-bottom:22px;">
-        <div style="font-size:48px; margin-bottom:12px;">📋</div>
+        <div style="font-size:48px; margin-bottom:12px;">${icon('clipboard')}</div>
         <h3 style="margin:0 0 8px;">No listings yet</h3>
         <p class="muted" style="margin-bottom:18px;">When you report a lost or found pet, it shows up here so you can track matches and manage the listing.</p>
         <div class="row" style="justify-content:center;">
@@ -156,7 +166,7 @@ function renderMyListings() {
           <a href="#/found" class="btn found" data-link>Report a found pet</a>
         </div>
       </div>
-    ` : myListings.map(l => myListingCard(l)).join("")}
+    ` : myListings.map(l => myListingCard(l, matchCounts[l.id] || 0)).join("")}
 
     ${bookmarked.length > 0 ? html`
       <h2 style="font-size:20px; font-weight:700; margin:28px 0 12px;">Bookmarked listings</h2>
@@ -164,7 +174,7 @@ function renderMyListings() {
     ` : ""}
 
     <div class="card" style="margin-top:22px; background:var(--info-soft); border-color:#c0d4f0;">
-      <h3 style="margin:0 0 8px; font-size:16px;">📤 Export your data</h3>
+      <h3 style="margin:0 0 8px; font-size:16px;">${icon('share')} Export your data</h3>
       <p class="muted" style="margin-bottom:12px; font-size:13.5px;">Download a copy of all your submitted listings and alert history as JSON.</p>
       <button class="btn small" id="export-btn">Download JSON</button>
     </div>
@@ -175,13 +185,12 @@ function renderMyListings() {
   $("#export-btn")?.addEventListener("click", exportData);
 }
 
-function myListingCard(l) {
+function myListingCard(l, matchCount = 0) {
   const isExpired = l.status === "expired";
   const isPaused = l.status === "paused";
   const isReunited = l.status === "reunited";
   const isActive = l.status === "active";
 
-  const matchCount = computeMatches(l).length;
   const shares = Object.values(state.shareCounts?.[l.id] || {}).reduce((a, b) => a + b, 0);
   const renewalNeeded = !isExpired && !isReunited && Date.now() - new Date(l.posted) > 75 * 86400000;
 
@@ -189,7 +198,7 @@ function myListingCard(l) {
     <div class="my-listing-card">
       <div class="my-listing-photo" style="${l.photo ? `background-image:url('${escapeHtml(l.photo)}')` : ""}">
         <span class="tag ${l.status === "active" ? l.type : l.status}">${
-          { active: l.type === "lost" ? "Lost" : "Found", paused: "Paused", reunited: "Reunited ✓", expired: "Expired" }[l.status]
+          { active: l.type === "lost" ? "Lost" : "Found", paused: "Paused", reunited: `Reunited ${icon('check')}`, expired: "Expired" }[l.status]
         }</span>
       </div>
       <div class="my-listing-body">
@@ -200,23 +209,23 @@ function myListingCard(l) {
           </div>
         </div>
 
-        ${renewalNeeded ? `<div class="callout" style="margin:10px 0 0; font-size:13px; padding:8px 12px;">⚠️ This listing expires in ${90 - Math.floor((Date.now() - new Date(l.posted)) / 86400000)} days. <button class="btn small primary" style="padding:4px 10px; font-size:12px;" data-action="renew" data-id="${l.id}">Renew now</button></div>` : ""}
-        ${isExpired ? `<div class="callout danger" style="margin:10px 0 0; font-size:13px; padding:8px 12px;">⛔ This listing expired 90 days after it was posted and is no longer visible. <button class="btn small" style="padding:4px 10px; font-size:12px;" data-action="renew" data-id="${l.id}">Repost listing</button></div>` : ""}
+        ${renewalNeeded ? `<div class="callout" style="margin:10px 0 0; font-size:13px; padding:8px 12px;">${icon('alert-triangle')} This listing expires in ${90 - Math.floor((Date.now() - new Date(l.posted)) / 86400000)} days. <button class="btn small primary" style="padding:4px 10px; font-size:12px;" data-action="renew" data-id="${l.id}">Renew now</button></div>` : ""}
+        ${isExpired ? `<div class="callout danger" style="margin:10px 0 0; font-size:13px; padding:8px 12px;">${icon('alert-triangle')} This listing expired 90 days after it was posted and is no longer visible. <button class="btn small" style="padding:4px 10px; font-size:12px;" data-action="renew" data-id="${l.id}">Repost listing</button></div>` : ""}
 
         <div class="my-listing-stats">
-          <span>🎯 ${matchCount} match${matchCount !== 1 ? "es" : ""}</span>
-          <span>📤 ${shares} share${shares !== 1 ? "s" : ""}</span>
-          <span>🔔 ${state.alerts.filter(a => a.listingId === l.id).length} alert${state.alerts.filter(a => a.listingId === l.id).length !== 1 ? "s" : ""}</span>
+          <span>${icon('target')} ${matchCount} match${matchCount !== 1 ? "es" : ""}</span>
+          <span>${icon('share')} ${shares} share${shares !== 1 ? "s" : ""}</span>
+          <span>${icon('bell')} ${state.alerts.filter(a => a.listingId === l.id).length} alert${state.alerts.filter(a => a.listingId === l.id).length !== 1 ? "s" : ""}</span>
         </div>
 
         <div class="my-listing-actions">
           <a href="#/listing/${l.id}" class="btn small" data-link>View</a>
-          ${isActive ? `<button class="btn small my-listing-action" data-action="pause" data-id="${l.id}">⏸ Pause</button>` : ""}
+          ${isActive ? `<button class="btn small my-listing-action" data-action="pause" data-id="${l.id}">${icon('pause')} Pause</button>` : ""}
           ${isPaused ? `<button class="btn small my-listing-action" data-action="resume" data-id="${l.id}">▶ Resume</button>` : ""}
-          ${(isActive || isPaused) ? `<button class="btn small found my-listing-action" data-action="reunite" data-id="${l.id}">🎉 Mark reunited</button>` : ""}
-          <button class="btn small ghost" data-action="flyer" data-id="${l.id}" onclick="openFlyer(findListing('${l.id}'))">🖨️ Flyer</button>
-          <a href="#/share-wizard/${l.id}" class="btn small" data-link>📣 Share wizard</a>
-          ${isExpired || isReunited ? `<button class="btn small ghost my-listing-action" data-action="delete" data-id="${l.id}" style="color:var(--lost);">🗑 Delete</button>` : ""}
+          ${(isActive || isPaused) ? `<button class="btn small found my-listing-action" data-action="reunite" data-id="${l.id}"> Mark reunited</button>` : ""}
+          <button class="btn small ghost" data-action="flyer" data-id="${l.id}" onclick="openFlyer(findListing('${l.id}'))">${icon('printer')} Flyer</button>
+          <a href="#/share-wizard/${l.id}" class="btn small" data-link>${icon('megaphone')} Share wizard</a>
+          ${isExpired || isReunited ? `<button class="btn small ghost my-listing-action" data-action="delete" data-id="${l.id}" style="color:var(--lost);">${icon('trash')} Delete</button>` : ""}
         </div>
       </div>
     </div>
@@ -236,7 +245,7 @@ function handleMyListingAction(e) {
     listing.status = "reunited";
     listing.reunitedAt = new Date().toISOString();
     state.reunions++;
-    toast("🎉 Marked as reunited! Alerts paused. Thank you for updating the community.");
+    toast("Marked as reunited! Alerts paused. Thank you for updating the community.");
     addCelebrationAlert(listing);
   }
   if (action === "renew") {
@@ -260,7 +269,7 @@ function addCelebrationAlert(listing) {
     matchId: listing.id,
     score: 1,
     when: new Date().toISOString(),
-    message: `🎉 ${listing.name || listing.species} is home! Reunited ${fmtDate(listing.reunitedAt)}`,
+    message: ` ${listing.name || listing.species} is home! Reunited ${fmtDate(listing.reunitedAt)}`,
     read: false,
     celebration: true,
   });
@@ -287,13 +296,13 @@ function renderShareWizard(id) {
 
   const title = l.name || (l.type === "found" ? `Found ${l.species}` : `Lost ${l.species}`);
   const url = `https://pawtrail.example/listing/${l.id}`;
-  const defaultCopy = `${l.type === "lost" ? "🔴 LOST PET" : "🟢 FOUND PET"}: ${title} near ${l.location || "our neighborhood"}.${l.reward ? ` Reward $${l.reward}.` : ""} ${l.breed ? l.breed + ". " : ""}${l.features ? l.features.slice(0, 80) + "... " : ""}Please share! 🐾 ${url}`;
+  const defaultCopy = `${l.type === "lost" ? "LOST PET" : "FOUND PET"}: ${title} near ${l.location || "our neighborhood"}.${l.reward ? ` Reward $${l.reward}.` : ""} ${l.breed ? l.breed + ". " : ""}${l.features ? l.features.slice(0, 80) + "... " : ""}Please share! ${url}`;
 
   const groupsHtml = LOCAL_FB_GROUPS.map(g => html`
     <div class="fb-group-row">
       <div class="fb-group-info">
         <div class="fb-group-name">${escapeHtml(g.name)}</div>
-        <div class="fb-group-meta">${escapeHtml(g.members)} members ${g.active ? "· ✅ Active" : "· 🕒 Less active"}</div>
+        <div class="fb-group-meta">${escapeHtml(g.members)} members ${g.active ? `· ${icon('check-circle')} Active` : `· ${icon('clock')} Less active`}</div>
       </div>
       <div class="row" style="gap:6px; flex-shrink:0;">
         <button class="btn small" data-copy-group="${escapeHtml(g.name)}">Copy text</button>
@@ -316,8 +325,8 @@ function renderShareWizard(id) {
       <div class="wizard-step-label">Step 1 — Your share copy (auto-generated, editable)</div>
       <textarea id="share-copy" rows="4" style="width:100%; padding:12px; border-radius:var(--radius-sm); border:1.5px solid var(--line); font-family:inherit; font-size:14px; resize:vertical; outline:none;">${escapeHtml(defaultCopy)}</textarea>
       <div class="row" style="margin-top:8px; gap:6px;">
-        <button class="btn small" id="copy-text-btn">📋 Copy to clipboard</button>
-        <button class="btn small ghost" id="reset-copy-btn">↺ Reset to default</button>
+        <button class="btn small" id="copy-text-btn">${icon('clipboard')} Copy to clipboard</button>
+        <button class="btn small ghost" id="reset-copy-btn">${icon('refresh')} Reset to default</button>
       </div>
     </div>
 
@@ -326,17 +335,17 @@ function renderShareWizard(id) {
       <div class="wizard-step-label">Step 2 — Share to social media</div>
       <div class="platform-grid">
         ${[
-          ["facebook", "📘", "Facebook", "var(--info-soft)", "var(--info)"],
+          ["facebook", icon('book'), "Facebook", "var(--info-soft)", "var(--info)"],
           ["x", "𝕏", "X / Twitter", "#f0e8f8", "#7c3aed"],
-          ["whatsapp", "💬", "WhatsApp", "var(--found-soft)", "var(--found)"],
-          ["nextdoor", "🏘️", "Nextdoor", "#fff5e4", "#b87800"],
-          ["sms", "✉️", "SMS / Text", "var(--bg)", "var(--ink-soft)"],
-          ["instagram", "📷", "Instagram", "#fde9e7", "var(--lost)"],
-          ["copy", "🔗", "Copy link", "var(--bg)", "var(--muted)"],
-        ].map(([ch, icon, label, bg, color]) => html`
+          ["whatsapp", icon('message'), "WhatsApp", "var(--found-soft)", "var(--found)"],
+          ["nextdoor", icon('home'), "Nextdoor", "#fff5e4", "#b87800"],
+          ["sms", icon('mail'), "SMS / Text", "var(--bg)", "var(--ink-soft)"],
+          ["instagram", icon('camera'), "Instagram", "#fde9e7", "var(--lost)"],
+          ["copy", icon('link'), "Copy link", "var(--bg)", "var(--muted)"],
+        ].map(([ch, glyph, label, bg, color]) => html`
           <button class="platform-btn" data-share="${ch}" data-lid="${l.id}"
             style="background:${bg}; color:${color};">
-            <span style="font-size:24px;">${icon}</span>
+            <span style="font-size:24px;">${glyph}</span>
             <span>${label}</span>
           </button>
         `).join("")}
@@ -351,7 +360,7 @@ function renderShareWizard(id) {
       <div class="wizard-step-label">Step 3 — Download share image (auto-generated)</div>
       <p class="muted" style="font-size:13px; margin-bottom:12px;">Save this image and attach it to your Facebook / Instagram posts — images get far more reach than text-only posts.</p>
       <div id="share-card-wrap" style="text-align:center;">
-        <div class="share-card-loading">⏳ Generating share card…</div>
+        <div class="share-card-loading">${icon('clock')} Generating share card…</div>
       </div>
     </div>
 
@@ -366,7 +375,7 @@ function renderShareWizard(id) {
     <div class="wizard-step">
       <div class="wizard-step-label">Step 5 — Physical flyers (underestimated every time)</div>
       <p class="muted" style="font-size:13px; margin-bottom:12px;">Delivery drivers, mail carriers, and neighbors who don't use social media. Neon paper, every intersection within 1 mile.</p>
-      <button class="btn primary" id="wizard-flyer-btn">🖨️ Print flyer with QR code</button>
+      <button class="btn primary" id="wizard-flyer-btn">${icon('printer')} Print flyer with QR code</button>
     </div>
   `;
 
@@ -406,7 +415,7 @@ function renderShareWizard(id) {
     if (!wrap) return;
     wrap.innerHTML = `
       <img src="${dataUrl}" alt="Share card" style="max-width:100%; border-radius:var(--radius-sm); border:1.5px solid var(--line); margin-bottom:10px;" />
-      <br/><a href="${dataUrl}" download="pawtrail-share-${l.id}.png" class="btn small primary">⬇ Download share image</a>
+      <br/><a href="${dataUrl}" download="pawtrail-share-${l.id}.png" class="btn small primary">${icon('download')} Download share image</a>
     `;
   });
 }
@@ -450,14 +459,14 @@ function shelterImageSVG(s) {
     emergency: ["#f0604f", "#c8281a"],
   };
   const [c1, c2] = palette[s.type] || ["#f3b27a", "#e87c2e"];
-  const icon = { vet: "🏥", shelter: "🏠", rescue: "🤝", emergency: "🚨" }[s.type] || "🐾";
+  const glyph = { vet: "V", shelter: "S", rescue: "R", emergency: "E" }[s.type] || "P";
   const svg =
 `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 150">
 <defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
 <rect width="400" height="150" fill="url(#b)"/>
 <circle cx="350" cy="20" r="80" fill="#ffffff" opacity="0.10"/>
 <circle cx="40" cy="140" r="60" fill="#000000" opacity="0.07"/>
-<text x="200" y="80" font-size="64" text-anchor="middle" dominant-baseline="central">${icon}</text>
+<text x="200" y="80" font-size="56" font-family="system-ui, -apple-system, sans-serif" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${glyph}</text>
 </svg>`;
   return "data:image/svg+xml," + encodeURIComponent(svg);
 }
@@ -484,7 +493,7 @@ function renderShelterPortal() {
             <p class="muted" style="font-size:13px; margin:0 0 8px;">${escapeHtml(s.address)}</p>
             <div class="shelter-meta">
               <span>${escapeHtml(s.hours)}</span>
-              ${s.chipScan ? `<span class="chip-badge">✓ Chip scan</span>` : ""}
+              ${s.chipScan ? `<span class="chip-badge">${icon('check')} Chip scan</span>` : ""}
               ${s.holdDays ? `<span class="hold-badge">Hold: ${s.holdDays} days</span>` : ""}
             </div>
             <div class="row" style="margin-top:10px; gap:6px;">
@@ -509,7 +518,7 @@ function renderShelterPortal() {
     </details>
 
     <details class="portal-disclosure">
-      <summary>➕ Submit a manual intake</summary>
+      <summary>${icon('plus')} Submit a manual intake</summary>
       <p class="subhead" style="margin-top:10px;">For shelters not on PetPoint or Shelterluv. A few fields, under a minute.</p>
       <form id="shelter-intake-form">
         <div class="field">
@@ -522,7 +531,7 @@ function renderShelterPortal() {
         <div class="field">
           <label>Photo *</label>
           <label class="photo-input" for="shelter-photo">
-            <div style="font-size:24px;">📷</div>
+            <div style="font-size:24px;">${icon('camera')}</div>
             <div style="font-weight:600; margin-top:4px;">Upload intake photo</div>
             <input id="shelter-photo" type="file" accept="image/*" />
           </label>
@@ -559,7 +568,7 @@ function renderShelterPortal() {
         </div>
         <div id="csv-upload-area" hidden style="margin-top:12px;">
           <label class="photo-input" style="font-size:14px;" for="csv-file">
-            📄 Upload CSV file (columns: species, photo_url, intake_date, zip, description)
+            ${icon('file-text')} Upload CSV file (columns: species, photo_url, intake_date, zip, description)
             <input id="csv-file" type="file" accept=".csv" style="display:none;" />
           </label>
           <div class="hint">Max 500 rows per upload. Rows are matched against active Lost listings immediately.</div>
@@ -569,7 +578,7 @@ function renderShelterPortal() {
 
     <!-- Microchip registry links -->
     <details class="portal-disclosure">
-      <summary>🔎 Microchip registry quick links</summary>
+      <summary>${icon('search')} Microchip registry quick links</summary>
       <p class="subhead" style="margin-top:10px;">Scan every intake for a chip, then look up ownership in these registries — most are free.</p>
       <div class="chip-registry-grid">
         ${CHIP_REGISTRIES.map(r => html`
@@ -602,7 +611,7 @@ function initShelterIntakeForm() {
         const custom = prompt("What kind of animal is it? (e.g., Hamster, Turtle, Snake)");
         if (custom) {
           selected = custom.toLowerCase().trim();
-          b.textContent = speciesEmoji(selected) + " " + custom;
+          b.innerHTML = speciesEmoji(selected) + " " + escapeHtml(custom);
         }
       }
       species = selected;
@@ -664,7 +673,7 @@ function initShelterIntakeForm() {
       toast(policy.reason || "Intake blocked by automated moderation.");
       return;
     }
-    const matches = computeMatches(listing).slice(0, 3);
+    const matches = (await computeMatches(listing)).slice(0, 3);
     matches.forEach(m => {
       state.alerts.unshift({ id: "A-"+Date.now()+"-"+m.listing.id, listingId: listing.id, matchId: m.listing.id, score: m.score, when: new Date().toISOString(), message: `Shelter intake match ${Math.round(m.score*100)}% — ${m.reasons.slice(0,2).join(", ")}`, read: false });
     });
@@ -801,7 +810,7 @@ function renderSettings() {
     state.settings.darkMode = document.getElementById("set-dark").checked;
     applyDarkMode();
     const btn = $("#darkmode-btn");
-    if (btn) btn.textContent = state.settings.darkMode ? "☀️" : "🌙";
+    if (btn) btn.innerHTML = state.settings.darkMode ? icon('sun') : icon('moon');
     saveState();
     toast("Settings saved.");
   });
@@ -839,7 +848,7 @@ function renderAdmin() {
           <div class="row" style="justify-content:space-between; gap:10px; align-items:flex-start;">
             <div style="min-width:0;">
               <strong>${speciesEmoji(l.species)} ${escapeHtml(l.name || l.species || "Pet listing")}</strong>
-              <p class="muted" style="font-size:13px;">${escapeHtml(l.contact || "No public contact")} Â· ${escapeHtml(l.zip || "")} Â· ${fmtDate(l.posted)}</p>
+              <p class="muted" style="font-size:13px;">${escapeHtml(l.contact || "No public contact")} · ${escapeHtml(l.zip || "")} · ${fmtDate(l.posted)}</p>
             </div>
             <span class="tag-inline ${l.status === "suspended" ? "lost" : "found"}">${escapeHtml(l.status || "active")}</span>
           </div>
@@ -872,7 +881,7 @@ function renderAdmin() {
 // =========================================
 function openCrisisModal() {
   const m = openModal(html`
-    <h3>🆘 Request a callback</h3>
+    <h3>${icon('life-buoy')} Request a callback</h3>
     <p class="muted" style="font-size:13.5px; margin-top:0;">A PawTrail volunteer will call you back within 1 hour during staffed hours (9am–9pm local). For an immediate crisis, please also call:</p>
     <ul style="font-size:14px; padding-left:18px; margin:8px 0 14px;">
       <li><strong>ASPCA Pet Loss Hotline:</strong> 1-877-474-3310</li>
@@ -896,7 +905,7 @@ function openCrisisModal() {
   m.querySelector("#crisis-submit").addEventListener("click", () => {
     const phone = m.querySelector("#crisis-phone").value.trim();
     if (!phone) { toast("Please enter your phone number."); return; }
-    toast("Callback request received. A volunteer will call within 1 hour. 🧡");
+    toast("Callback request received. A volunteer will call within 1 hour. ");
     m.remove();
   });
 }
@@ -916,7 +925,7 @@ function renderSearchPage() {
       <button class="btn primary" type="submit">Search</button>
     </form>
     ${q ? `<p class="subhead">${results.length} result${results.length !== 1 ? "s" : ""} for "${escapeHtml(q)}"</p>` : ""}
-    ${q && results.length === 0 ? `<div class="empty"><div class="emoji">🔍</div>No listings match "${escapeHtml(q)}". Try a shorter term or <a href="#/listings" data-link>browse all</a>.</div>` : ""}
+    ${q && results.length === 0 ? `<div class="empty"><div class="emoji">${icon('search')}</div>No listings match "${escapeHtml(q)}". Try a shorter term or <a href="#/listings" data-link>browse all</a>.</div>` : ""}
     <div class="list-grid">${results.map(listingCard).join("")}</div>
   `;
   bindLinks();
@@ -946,7 +955,7 @@ function renderBookmarks() {
   $("#app").innerHTML = html`
     <h1 style="font-size:28px; font-weight:800; letter-spacing:-.02em; margin-bottom:6px;">Bookmarked listings</h1>
     <p class="subhead">Tap the bookmark icon on any listing to save it here.</p>
-    ${items.length === 0 ? `<div class="empty"><div class="emoji">🔖</div>No bookmarks yet. Browse listings and tap ★ to save them here.</div>` : ""}
+    ${items.length === 0 ? `<div class="empty"><div class="emoji">${icon('bookmark')}</div>No bookmarks yet. Browse listings and tap ${icon('star')} to save them here.</div>` : ""}
     <div class="list-grid">${items.map(listingCard).join("")}</div>
   `;
   bindLinks();
@@ -1068,7 +1077,7 @@ function initPWA() {
   });
 
   window.addEventListener("appinstalled", () => {
-    toast("PawTrail installed successfully! 🐾");
+    toast("PawTrail installed successfully! ");
     document.getElementById("install-banner").hidden = true;
     updateBodyPad();
   });
@@ -1081,10 +1090,10 @@ function strayHoldBadge(listing) {
   if (!listing.stayDeadline) return "";
   const msLeft = new Date(listing.stayDeadline) - Date.now();
   const daysLeft = Math.ceil(msLeft / 86400000);
-  if (daysLeft < 0) return `<span class="tag-inline" style="background:#fde9e7;color:#d93a2e;">⛔ Hold expired</span>`;
-  if (daysLeft === 0) return `<span class="tag-inline" style="background:#fde9e7;color:#d93a2e; animation:pulse 1s infinite;">🚨 Hold expires TODAY</span>`;
-  if (daysLeft <= 2) return `<span class="tag-inline" style="background:#fff8e1;color:#b87800;">⚠️ ${daysLeft}d until hold expires</span>`;
-  return `<span class="tag-inline" style="background:var(--found-soft);color:var(--found);">✓ ${daysLeft}d hold remaining</span>`;
+  if (daysLeft < 0) return `<span class="tag-inline" style="background:#fde9e7;color:#d93a2e;">${icon('alert-triangle')} Hold expired</span>`;
+  if (daysLeft === 0) return `<span class="tag-inline" style="background:#fde9e7;color:#d93a2e; animation:pulse 1s infinite;">${icon('alert-triangle')} Hold expires TODAY</span>`;
+  if (daysLeft <= 2) return `<span class="tag-inline" style="background:#fff8e1;color:#b87800;">${icon('alert-triangle')} ${daysLeft}d until hold expires</span>`;
+  return `<span class="tag-inline" style="background:var(--found-soft);color:var(--found);">${icon('check')} ${daysLeft}d hold remaining</span>`;
 }
 
 // =========================================
@@ -1093,7 +1102,7 @@ function strayHoldBadge(listing) {
 function initDarkModeBtn() {
   const btn = document.getElementById("darkmode-btn");
   if (btn) {
-    btn.textContent = state.settings?.darkMode ? "☀️" : "🌙";
+    btn.innerHTML = state.settings?.darkMode ? icon('sun') : icon('moon');
     btn.addEventListener("click", toggleDarkMode);
   }
 }
@@ -1105,8 +1114,50 @@ function initDarkModeBtn() {
 // =========================================
 let _audioCtx = null;
 let _audioNodes = null;
+let _bgAudio = null;
+let _bgFade = null;
 
+// Smoothly ramp an <audio> element's volume (Web-Audio-free, works everywhere).
+function fadeAudioTo(audio, target, ms, done) {
+  if (_bgFade) { clearInterval(_bgFade); _bgFade = null; }
+  const steps = Math.max(1, Math.round(ms / 50));
+  const start = audio.volume, delta = (target - start) / steps;
+  let s = 0;
+  _bgFade = setInterval(() => {
+    s++;
+    audio.volume = Math.max(0, Math.min(1, start + delta * s));
+    if (s >= steps) { clearInterval(_bgFade); _bgFade = null; if (done) done(); }
+  }, 50);
+}
+
+// Primary: a baked ~5-min ambient track (loops, but long enough to rarely repeat).
+// Falls back to the generative engine below if the file can't load.
 function startAmbientSound() {
+  if (_bgAudio || _audioNodes) return;
+  let a;
+  try { a = new Audio("audio/pawtrail-calm.wav"); }
+  catch (e) { startGenerativeSound(); return; }
+  a.loop = true;
+  a.volume = 0;
+  _bgAudio = a;
+  const onFail = () => { if (_bgAudio === a) { _bgAudio = null; startGenerativeSound(); } };
+  a.addEventListener("error", onFail, { once: true });
+  const p = a.play();
+  if (p && p.then) p.then(() => fadeAudioTo(a, 0.55, 3500)).catch(onFail);
+  else fadeAudioTo(a, 0.55, 3500);
+}
+
+function stopAmbientSound() {
+  if (_bgAudio) {
+    const a = _bgAudio; _bgAudio = null;
+    fadeAudioTo(a, 0, 1500, () => { try { a.pause(); a.currentTime = 0; } catch (e) {} });
+    return;
+  }
+  stopGenerativeSound();
+}
+
+// ---- generative fallback (no audio file) ----
+function startGenerativeSound() {
   if (_audioNodes) return;
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return;
@@ -1120,19 +1171,19 @@ function startAmbientSound() {
   // Warm low-pass so the tone is soft, never harsh.
   const filter = ctx.createBiquadFilter();
   filter.type = "lowpass";
-  filter.frequency.value = 850;
-  filter.Q.value = 0.6;
+  filter.frequency.value = 760;
+  filter.Q.value = 0.5;
   filter.connect(master);
 
-  // Calm, consonant chord (A2 · E3 · A3 · E4), higher notes quieter.
-  const freqs = [110.0, 164.81, 220.0, 329.63];
+  // Calm, consonant chord (A2 · E3 · A3 · E4 · B4), higher notes quieter — a warm pad.
+  const freqs = [110.0, 164.81, 220.0, 329.63, 493.88];
   const oscs = freqs.map((f, i) => {
     const o = ctx.createOscillator();
     o.type = i % 2 === 0 ? "sine" : "triangle";
     o.frequency.value = f;
-    o.detune.value = (i - 1.5) * 4; // gentle detune for warmth
+    o.detune.value = (i - 2) * 4; // gentle detune for warmth
     const g = ctx.createGain();
-    g.gain.value = 0.16 / (i + 1);
+    g.gain.value = 0.14 / (i + 1);
     o.connect(g);
     g.connect(filter);
     o.start();
@@ -1143,32 +1194,68 @@ function startAmbientSound() {
   const lfo = ctx.createOscillator();
   lfo.frequency.value = 0.05;
   const lfoGain = ctx.createGain();
-  lfoGain.gain.value = 0.04;
+  lfoGain.gain.value = 0.045;
   lfo.connect(lfoGain);
   lfoGain.connect(master.gain);
   lfo.start();
 
-  // Fade in over 3s.
+  // Second, slower LFO breathes the filter cutoff so the timbre gently evolves.
+  const fLfo = ctx.createOscillator();
+  fLfo.frequency.value = 0.022;
+  const fLfoGain = ctx.createGain();
+  fLfoGain.gain.value = 260;
+  fLfo.connect(fLfoGain);
+  fLfoGain.connect(filter.frequency);
+  fLfo.start();
+
+  // Sparse, soft pentatonic chimes (A minor pentatonic) — distant wind-chime feel.
+  // Routed post-filter through their own soft bus so they stay clear but quiet.
+  const chimeBus = ctx.createGain();
+  chimeBus.gain.value = 0.5;
+  chimeBus.connect(master);
+  const PENT = [329.63, 392.0, 440.0, 587.33, 659.25]; // E4 G4 A4 D5 E5
+  function playChime() {
+    if (!_audioNodes) return;
+    const t = ctx.currentTime;
+    const f = PENT[Math.floor(Math.random() * PENT.length)];
+    const o = ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.value = f;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 1800;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.5);       // slow, soft attack
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 4.5);     // long, gentle tail
+    o.connect(lp); lp.connect(g); g.connect(chimeBus);
+    o.start(t); o.stop(t + 5);
+    // schedule the next chime 6–13s later
+    _audioNodes.chimeTimer = setTimeout(playChime, 6000 + Math.random() * 7000);
+  }
+
+  // Fade in over 3.5s.
   const now = ctx.currentTime;
   master.gain.setValueAtTime(0, now);
-  master.gain.linearRampToValueAtTime(0.11, now + 3);
+  master.gain.linearRampToValueAtTime(0.1, now + 3.5);
 
-  _audioNodes = { master, filter, oscs, lfo, lfoGain };
+  _audioNodes = { master, filter, oscs, lfo, lfoGain, fLfo, fLfoGain, chimeBus, chimeTimer: null };
+  _audioNodes.chimeTimer = setTimeout(playChime, 4000);
 }
 
-function stopAmbientSound() {
+function stopGenerativeSound() {
   if (!_audioNodes || !_audioCtx) return;
   const ctx = _audioCtx;
-  const { master, oscs, lfo, lfoGain } = _audioNodes;
+  const { master, oscs, lfo, lfoGain, fLfo, chimeTimer } = _audioNodes;
+  if (chimeTimer) clearTimeout(chimeTimer);
   const now = ctx.currentTime;
   master.gain.cancelScheduledValues(now);
   master.gain.setValueAtTime(master.gain.value, now);
-  master.gain.linearRampToValueAtTime(0, now + 1.5);
-  lfoGain.gain.linearRampToValueAtTime(0, now + 1.5);
+  master.gain.linearRampToValueAtTime(0, now + 1.8);
+  lfoGain.gain.linearRampToValueAtTime(0, now + 1.8);
   setTimeout(() => {
-    try { oscs.forEach(({ o }) => o.stop()); lfo.stop(); } catch (e) { /* already stopped */ }
+    try { oscs.forEach(({ o }) => o.stop()); lfo.stop(); fLfo.stop(); } catch (e) { /* already stopped */ }
     _audioNodes = null;
-  }, 1700);
+  }, 2000);
 }
 
 function updateSoundBtn() {
@@ -1178,11 +1265,11 @@ function updateSoundBtn() {
     if (!btn) return;
     btn.classList.toggle("active", on);
     if (id === "sound-btn") {
-      btn.textContent = on ? "🔊" : "🔈";
+      btn.innerHTML = on ? icon('volume') : icon('volume-x');
       btn.title = on ? "Calm soundtrack: on" : "Calm soundtrack: off";
       btn.setAttribute("aria-label", on ? "Turn off calm soundtrack" : "Turn on calm soundtrack");
     } else {
-      btn.textContent = (on ? "🔊" : "🔈") + " Calm soundtrack";
+      btn.innerHTML = (on ? icon('volume') : icon('volume-x')) + " Calm soundtrack";
       btn.setAttribute("aria-pressed", String(on));
     }
   });
@@ -1195,10 +1282,10 @@ function toggleSound() {
   updateSoundBtn();
   if (state.settings.sound) {
     startAmbientSound();
-    toast("🎵 Calm soundtrack on");
+    toast("Calm soundtrack on");
   } else {
     stopAmbientSound();
-    toast("🔇 Soundtrack off");
+    toast("Soundtrack off");
   }
 }
 
@@ -1236,7 +1323,7 @@ function initKeyboardShortcuts() {
 
 function showShortcutsModal() {
   const m = openModal(html`
-    <h3>⌨️ Keyboard shortcuts</h3>
+    <h3>Keyboard shortcuts</h3>
     <table style="width:100%; border-collapse:collapse; font-size:14px;">
       ${[
         ["/", "Open search"],
@@ -1290,10 +1377,10 @@ window.renderListingDetail = async function(id) {
     const bm = document.createElement("button");
     bm.className = "btn small ghost";
     bm.style.marginLeft = "8px";
-    bm.textContent = isBookmarked(id) ? "★ Bookmarked" : "☆ Bookmark";
+    bm.textContent = isBookmarked(id) ? " Bookmarked" : " Bookmark";
     bm.addEventListener("click", () => {
       const added = toggleBookmark(id);
-      bm.textContent = added ? "★ Bookmarked" : "☆ Bookmark";
+      bm.textContent = added ? " Bookmarked" : " Bookmark";
       toast(added ? "Listing bookmarked! Find it in My Listings." : "Bookmark removed.");
     });
     h1.appendChild(bm);

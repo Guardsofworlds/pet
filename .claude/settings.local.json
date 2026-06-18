@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir c:\\\\pet)"
+      "Bash(dir c:\\\\pet)",
+      "Skill(fewer-permission-prompts)",
+      "Skill(fewer-permission-prompts:*)",
+      "Bash(ls -1dt ~/.claude/projects/*/ 2>/dev/null | head -20; echo \"---PROJECT DIRS ABOVE---\")",
+      "Read(//c/Users/megan/.claude/projects/**)",
+      "Bash(awk '{o+=gsub\\(/{/,\"{\"\\); c+=gsub\\(/}/,\"}\"\\)} END{print \"open=\"o\" close=\"c\" balanced=\"\\(o==c\\)}' styles.css)",
+      "Bash(node --check app.js)"
     ]
   }
 }

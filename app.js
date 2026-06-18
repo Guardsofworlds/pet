@@ -3,12 +3,17 @@
 */
 
 const STORAGE_KEY = "pawtrail.v3";
+
+// Believable baseline for the "Reunited this month" demo stat. Live reunion
+// claims increment from here. Set to 0 for a true blank-slate launch.
+const DEMO_REUNIONS_BASE = 38;
+
 const state = {
   listings: [],
   alerts: [],
   communityPosts: [],
   postSubmissions: [],   // ISO timestamps of this browser's own posts (local rate-limit fallback)
-  reunions: 0,
+  reunions: DEMO_REUNIONS_BASE,
   draft: null,
   tipDismissed: false,
   bookmarks: [],
@@ -42,7 +47,7 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) Object.assign(state, JSON.parse(raw));
     state.listings = (state.listings || []).filter(l => !/^L-\d+/.test(l.id || "") && !/^SH-\d+/.test(l.id || ""));
-    if (state.reunions === 247 && !state.listings.length) state.reunions = 0;
+    if (!state.reunions) state.reunions = DEMO_REUNIONS_BASE;
   } catch (e) { /* ignore */ }
 }
 function saveState() {
@@ -78,7 +83,137 @@ const escapeHtml = s => String(s ?? "").replace(/[&<>"']/g, c =>
 const html = (strings, ...vals) =>
   strings.reduce((acc, s, i) => acc + s + (vals[i] !== undefined ? vals[i] : ""), "");
 
-function allListings() { return [...state.listings]; }
+// The AI engine + mind (ai-engine.js / ai-mind.js) read these helpers off the
+// global object (window.$, window.html, …). They're declared with `const`, so
+// they live in module scope, not on `window` — without this the AI Mind page
+// (which renders via window.$) silently finds no #app and shows nothing.
+Object.assign(window, { $, $$, escapeHtml, html });
+
+// ---------- icon system ----------
+// Clean, consistent stroke icons (Feather-style, currentColor). Replaces emoji
+// across the UI for a calmer, more professional tone. Use icon('name') in markup;
+// for HTML-escaped or textContent contexts, do NOT inject SVG — use plain text.
+const ICONS = {
+  paw: '<path d="M11 13.5c-2 0-3.7 1.6-3.7 3 0 1.1.9 1.7 2 1.7.7 0 1-.3 1.7-.3s1 .3 1.7.3c1.1 0 2-.6 2-1.7 0-1.4-1.7-3-3.4-3Z"/><circle cx="6.6" cy="11" r="1.4"/><circle cx="15.4" cy="11" r="1.4"/><circle cx="9" cy="8.2" r="1.4"/><circle cx="13" cy="8.2" r="1.4"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/>',
+  volume: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/>',
+  'volume-x': '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/>',
+  user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/>',
+  'life-buoy': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m4.9 4.9 4.2 4.2M14.8 14.8l4.3 4.3M14.8 9.1l4.3-4.2M14.7 9.3l4-4M4.9 19.1l4.2-4.2"/>',
+  smartphone: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/>',
+  map: '<path d="m9 4-6 2v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/>',
+  clipboard: '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',
+  building: '<path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 7h1m4 0h1M9 11h1m4 0h1M9 15h1m4 0h1"/>',
+  lightbulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.4.9 1 .9 1.7V16h5.4v-.5c0-.7.3-1.3.9-1.7A6 6 0 0 0 12 3Z"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14Z"/><path d="M4 19.5V21h14"/>',
+  'file-text': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  'alert-triangle': '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',
+  printer: '<path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  'map-pin': '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 6 10 7L22 6"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>',
+  tag: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z"/><circle cx="7.5" cy="7.5" r="1.2"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  home: '<path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2Z"/>',
+  'log-out': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/>',
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6l2 3h8a2 2 0 0 1 2 2Z"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  trash: '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>',
+  refresh: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
+  dollar: '<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  'help-circle': '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
+  bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  message: '<path d="M21 11.5a8 8 0 0 1-11.7 7L3 21l2.5-6.3A8 8 0 1 1 21 11.5Z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  'check-circle': '<path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14.1l-3-3"/>',
+  heart: '<path d="M20.8 5.6a5.5 5.5 0 0 0-7.8 0L12 6.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1 7.8 7.8 7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8Z"/>',
+  'alert-circle': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+  flag: '<path d="M4 22V4s1-1 4-1 5 2 8 2 4-1 4-1v10s-1 1-4 1-5-2-8-2-4 1-4 1"/>',
+  send: '<path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/>',
+  megaphone: '<path d="M3 11v3a1 1 0 0 0 1 1h2l3 4V6L6 10H4a1 1 0 0 0-1 1Z"/><path d="M11 6.5 19 3v18l-8-3.5"/>',
+  broadcast: '<circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/>',
+  pause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
+  star: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1Z"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  zap: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/>',
+  // Distinct, recognizable per-species icons (same stroke language as the rest).
+  dog: '<path d="M10 5 7.7 3.4C6.3 2.4 4.3 3 3.8 4.7L2.7 8.9a3 3 0 0 0 .6 2.7l1.4 1.6"/><path d="m14 5 2.3-1.6c1.4-1 3.4-.4 3.9 1.3l1.1 4.2a3 3 0 0 1-.6 2.7l-1.4 1.6"/><path d="M5 9.5A6.5 6 0 0 0 4.6 14c.6 3.4 3.7 5.5 7.4 5.5s6.8-2.1 7.4-5.5a6.5 6 0 0 0-.4-4.5"/><path d="M9.5 13h.01M14.5 13h.01"/><path d="M10.5 15.5a1.6 1.6 0 0 0 3 0Z"/>',
+  cat: '<path d="M4.6 3.8 8 8M19.4 3.8 16 8"/><path d="M8 8a6.2 5.6 0 0 0-2.3 4.4c0 3.2 2.8 5.4 6.3 5.4s6.3-2.2 6.3-5.4A6.2 5.6 0 0 0 16 8"/><path d="M9.4 12.3h.01M14.6 12.3h.01"/><path d="M10.9 14.4a1.6 1.4 0 0 0 2.2 0"/><path d="M6.2 13 3.6 12.4M17.8 13l2.6-.6M6.4 14.6l-2.5.9M17.6 14.6l2.5.9"/>',
+  rabbit: '<path d="M8.6 9.1 7.2 4.4C6.7 2.8 8.2 1.9 9.3 3c.9.9 1.6 2.5 1.8 4.2M15.4 9.1l1.4-4.7c.5-1.6-1-2.5-2.1-1.4-.9.9-1.6 2.5-1.8 4.2"/><path d="M7.8 8.8a5.4 4.8 0 0 0 8.4 0"/><path d="M6.4 12.8C4.9 12.8 4 14 4 15.5 4 18.4 7.6 20.6 12 20.6s8-2.2 8-5.1c0-1.5-.9-2.7-2.4-2.7"/><path d="M10.1 16.3h.01M13.9 16.3h.01"/><path d="M11 18a1.4 1.2 0 0 0 2 0"/>',
+  bird: '<path d="M15.6 7.4h.01"/><path d="M3.5 18.6h7.4a7 7 0 0 0 7-7V8a4 4 0 0 0-7.2-2.4L2 19"/><path d="m17.8 7.4 3.2-.8-3-.9"/><path d="M10.6 18.6V21M14 18.3V21"/><path d="M7.5 18.6a6 6 0 0 0 3.6-10.4"/>',
+  fish: '<path d="M16.7 6.6C14.9 5.7 13 5.4 11.3 5.4 7.7 5.4 4.2 7.6 3 12c1.2 4.4 4.7 6.6 8.3 6.6 1.7 0 3.6-.3 5.4-1.2"/><path d="M16.5 6.6 21 9.6c.9.6 1 1.9.2 2.6l-.2.2-4.5 2.9"/><path d="M11 5.6C10.7 4.4 9.8 3 8.7 2.4M11 18.4c-.3 1.2-1.2 2.6-2.3 3.2"/><path d="M16.6 12h.01"/>',
+  'paw-print': '<ellipse cx="6.2" cy="12.2" rx="1.5" ry="2"/><ellipse cx="10" cy="8.8" rx="1.5" ry="2"/><ellipse cx="14" cy="8.8" rx="1.5" ry="2"/><ellipse cx="17.8" cy="12.2" rx="1.5" ry="2"/><path d="M12 13.3c-2.1 0-3.8 1.7-3.8 3.4 0 1.2.9 1.9 2 1.9.8 0 1.1-.3 1.8-.3s1 .3 1.8.3c1.1 0 2-.7 2-1.9 0-1.7-1.7-3.4-3.8-3.4Z"/>',
+};
+function icon(name, cls = "") {
+  const p = ICONS[name];
+  if (!p) return "";
+  return `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+}
+// Resolve an icon name stored in data (tips/articles). "paw" -> brand paw.
+function dataIcon(name) {
+  return name === "paw" ? pawIcon() : icon(name);
+}
+// Request a higher-resolution crop from an Unsplash-style URL for large display.
+function hiRes(url, w = 900, h = 900) {
+  return typeof url === "string" ? url.replace(/w=\d+&h=\d+/, `w=${w}&h=${h}`) : url;
+}
+
+// ---------- editorial imagery ----------
+// Reuses the curated, known-good PHOTOS pool so every image reliably loads.
+// Gives the icon-only sections real visual context.
+const SCENE = {
+  post:    PHOTOS.dog[3],
+  match:   PHOTOS.cat[1],
+  reunite: PHOTOS.dog[6],
+};
+const ARTICLE_IMG = {
+  "first-24-hours": PHOTOS.dog[3],
+  "search-strategy": PHOTOS.cat[1],
+  "flyers":         PHOTOS.dog[6],
+  "scams":          PHOTOS.dog[2],
+  "found-pet":      PHOTOS.cat[5],
+  "scent":          PHOTOS.dog[5],
+  "neighbors":      PHOTOS.dog[1],
+  "shelters":       PHOTOS.cat[4],
+  "emotional":      PHOTOS.cat[3],
+  "injured":        PHOTOS.other[1],
+};
+function articleImg(a, w = 640, h = 360) {
+  const url = ARTICLE_IMG[a && a.id] || PHOTOS.dog[0];
+  return hiRes(url, w, h);
+}
+// Filled brand paw (used for species markers and the wordmark)
+function pawIcon(cls = "") {
+  return `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><ellipse cx="6" cy="11" rx="2" ry="2.6"/><ellipse cx="10" cy="7.4" rx="2" ry="2.6"/><ellipse cx="14" cy="7.4" rx="2" ry="2.6"/><ellipse cx="18" cy="11" rx="2" ry="2.6"/><path d="M12 12.5c-2.6 0-4.8 2.1-4.8 4 0 1.5 1.2 2.3 2.7 2.3.9 0 1.4-.4 2.1-.4s1.2.4 2.1.4c1.5 0 2.7-.8 2.7-2.3 0-1.9-2.2-4-4.8-4Z"/></svg>`;
+}
+
+// A distinct, recognizable icon for each species — guides the eye on the report
+// form and beside listings, without resorting to emoji. Unknown/other → paw.
+function speciesIcon(species, cls = "") {
+  const map = { dog: "dog", cat: "cat", rabbit: "rabbit", bird: "bird", fish: "fish" };
+  return icon(map[String(species || "").toLowerCase()] || "paw-print", cls);
+}
+
+function allListings() {
+  // Merge curated demo listings (SEED_LISTINGS) with live/user listings.
+  // Seeds are never persisted; a real listing with the same id always wins.
+  const seen = new Set(state.listings.map(l => l.id));
+  return [...state.listings, ...SEED_LISTINGS.filter(l => !seen.has(l.id))];
+}
 function allPosts() { return [...state.communityPosts, ...SEED_COMMUNITY_POSTS]; }
 function findListing(id) { return allListings().find(l => l.id === id); }
 
@@ -335,9 +470,6 @@ async function hydrateGlobalListings() {
   // Always fetch from free public shelter open data (no credentials needed)
   totalAdded += await fetchPublicShelterData();
 
-  // Dynamically fetch shelter data for the user's specific city via Socrata Discovery API
-  totalAdded += await fetchCityShelterData(loc);
-
   // Also pull from Supabase Edge Function if configured
   if (window.PawTrailSupabase?.ready) {
     try {
@@ -434,7 +566,7 @@ function looksLikeJunk(value) {
 function showWarningModal(message, warnings) {
   const m = openModal(html`
     <div style="text-align:center; padding:10px;">
-      <div style="font-size:50px; margin-bottom:15px;">⚠️</div>
+      <div style="font-size:50px; margin-bottom:15px;">${icon('alert-triangle')}</div>
       <h2 style="color:var(--lost); margin-bottom:10px; font-weight:900;">WARNING</h2>
       <p style="font-size:16px; line-height:1.5; margin-bottom:20px;">${escapeHtml(message)}</p>
       <div style="background:var(--bg); padding:15px; border-radius:12px; margin-bottom:24px; border:1px solid var(--line);">
@@ -616,31 +748,11 @@ function fmtDate(iso) {
   if (diff < 3600 * 24 * 7) return `${Math.round(diff / 86400)}d ago`;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
+// Species marker — a distinct icon per animal so a glance reads dog vs. cat vs.
+// bird, with the species/name still shown as text beside it. Falls back to the
+// brand paw for "other" or unknown species.
 function speciesEmoji(s) {
-  const map = {
-    dog: "🐕", cat: "🐈", rabbit: "🐇", bird: "🦜",
-    hamster: "🐹", guinea: "🐹", rat: "🐀", mouse: "🐁", 
-    turtle: "🐢", tortoise: "🐢", snake: "🐍", lizard: "🦎", 
-    frog: "🐸", toad: "🐸",
-    horse: "🐎", pig: "🐖", goat: "🐐", chicken: "🐓", duck: "🦆",
-    ferret: "🦦", hedgehog: "🦔",
-    fish: "🐟", goldfish: "🐠", betta: "🐠", koi: "🎏", guppy: "🐠",
-    crab: "🦀", hermit: "🦀", shrimp: "🦐", snail: "🐌",
-    spider: "🕷️", tarantula: "🕷️", scorpion: "🦂",
-    axolotl: "🦎", salamander: "🦎", newt: "🦎", gecko: "🦎", bearded: "🦎",
-    cow: "🐄", bull: "🐂", sheep: "🐑", turkey: "🦃", goose: "🪿",
-    raccoon: "🦝", skunk: "🦨", squirrel: "🐿️", possum: "🐀", sugar: "🐿️",
-    owl: "🦉", peacock: "🦚", swan: "🦢", pigeon: "🐦", dove: "🕊️",
-    monkey: "🐒", marmoset: "🐒", sloth: "🦥",
-    insect: "🪲", beetle: "🪲", butterfly: "🦋", moth: "🦋", bee: "🐝",
-    alpaca: "🦙", llama: "🦙", camel: "🐫", elephant: "🐘", kangaroo: "🦘",
-    chinchilla: "🐁", gerbil: "🐹", capybara: "🦫", bat: "🦇"
-  };
-  if (map[s]) return map[s];
-  for (const [key, icon] of Object.entries(map)) {
-    if (s && s.toLowerCase().includes(key)) return icon;
-  }
-  return "🐾";
+  return speciesIcon(s, "species-ic");
 }
 
 function toast(msg, ms = 2600) {
@@ -761,6 +873,9 @@ function routeRender(hash) {
   if (route === "share-wizard" && rest[0]) return renderShareWizard(rest[0]);
   if (route === "search") return renderSearchPage();
   if (route === "bookmarks") return renderBookmarks();
+  if (route === "ai") {
+    if (window.PawTrailAI?.mind?.renderPage) return window.PawTrailAI.mind.renderPage();
+  }
   renderHome();
 }
 
@@ -780,44 +895,69 @@ function renderHome() {
   $("#app").innerHTML = html`
 
     <!-- ============================
-         ACTION HERO — Lost/Found first
+         SPLIT HERO - calm copy + framed pet imagery
          ============================ -->
-    <div class="action-hero paw-bg">
-      <div class="action-hero-inner">
-        <div class="action-hero-eyebrow">
-          <span class="dot"></span>
-          <span>${totalActive} active cases · ${state.reunions} reunited this month · 100% free</span>
-        </div>
-        <h1 class="action-hero-title">Has your pet gone missing?<br/>Did you find a stray?</h1>
-        <p class="action-hero-sub">Report in 90 seconds. We scan thousands of listings instantly and alert you when we find a match.</p>
+    <section class="hero2 paw-bg">
+      <div class="hero2-glow" aria-hidden="true"></div>
 
-        <div class="action-cta-grid">
+      <div class="hero2-content">
+        <div class="hero2-eyebrow">
+          <span class="dot"></span>
+          <span><strong>${totalActive}</strong> active cases · <strong>${state.reunions}</strong> reunited this month</span>
+        </div>
+
+        <h1 class="hero2-title">Let's bring<br/>them home.</h1>
+        <p class="hero2-sub">Lost a pet or found a stray? Post in 90 seconds. We'll alert you the moment we find a match.</p>
+
+        <div class="hero2-cta">
           <a href="#/lost" class="action-cta lost" data-link>
-            <div class="action-cta-emoji">😰</div>
-            <div class="action-cta-title">I Lost a Pet</div>
-            <div class="action-cta-sub">Post a lost report. Matching starts in seconds.</div>
+            <span class="action-cta-emoji">${icon('alert-circle')}</span>
+            <span class="action-cta-text">
+              <span class="action-cta-title">I Lost a Pet</span>
+              <span class="action-cta-sub">Matching starts in seconds</span>
+            </span>
+            <span class="action-cta-arrow">→</span>
           </a>
           <a href="#/found" class="action-cta found" data-link>
-            <div class="action-cta-emoji">🤝</div>
-            <div class="action-cta-title">I Found a Pet</div>
-            <div class="action-cta-sub">Report a stray. 90 seconds, no account needed.</div>
+            <span class="action-cta-emoji">${icon('heart')}</span>
+            <span class="action-cta-text">
+              <span class="action-cta-title">I Found a Pet</span>
+              <span class="action-cta-sub">90 seconds · no account</span>
+            </span>
+            <span class="action-cta-arrow">→</span>
           </a>
         </div>
 
-        <div class="action-hero-browse">
-          <form class="zipbar" id="zip-form" style="max-width:400px; margin:0 auto 14px;">
-            <input type="text" placeholder="Enter ZIP code to browse nearby cases" id="zip-input" inputmode="numeric" maxlength="5" />
-            <button class="btn primary" type="submit">Browse</button>
-          </form>
-          <div class="reunion-ticker" id="reunion-ticker">
-            ${RECENT_REUNIONS.map(r => html`
-              <span class="ticker-item">
-                <img src="${escapeHtml(r.photo)}" alt="" />
-                🎉 <strong>${escapeHtml(r.name)}</strong> reunited ${escapeHtml(r.time)}
-              </span>
-            `).join('<span class="ticker-sep">·</span>')}
-          </div>
+        <form class="zipbar hero2-zip" id="zip-form">
+          <input type="text" placeholder="Enter ZIP to browse nearby cases" id="zip-input" inputmode="numeric" maxlength="5" />
+          <button class="btn primary" type="submit">Browse</button>
+        </form>
+      </div>
+
+      <div class="hero2-media" aria-hidden="true">
+        <div class="hero2-photo hero2-photo-main" style="background-image:url('${escapeHtml(hiRes(RECENT_REUNIONS[1].photo, 900, 1000))}');"></div>
+        <div class="hero2-photo hero2-photo-sub a" style="background-image:url('${escapeHtml(hiRes(RECENT_REUNIONS[2].photo, 600, 750))}');"></div>
+        <div class="hero2-photo hero2-photo-sub b" style="background-image:url('${escapeHtml(hiRes(RECENT_REUNIONS[0].photo, 600, 750))}');"></div>
+        <div class="hero2-badge">
+          <span class="hero2-badge-emoji">${icon('check-circle')}</span>
+          <span class="hero2-badge-text">
+            <strong>${escapeHtml(RECENT_REUNIONS[0].name)} reunited</strong>
+            ${escapeHtml(RECENT_REUNIONS[0].time)} · ${escapeHtml(RECENT_REUNIONS[0].neighborhood)}
+          </span>
         </div>
+      </div>
+    </section>
+
+    <!-- Recently-reunited marquee -->
+    <div class="reunion-strip">
+      <span class="reunion-strip-label"> Just reunited</span>
+      <div class="reunion-ticker" id="reunion-ticker">
+        ${RECENT_REUNIONS.map(r => html`
+          <span class="ticker-item">
+            <img src="${escapeHtml(r.photo)}" alt="" loading="lazy" />
+            <strong>${escapeHtml(r.name)}</strong> · ${escapeHtml(r.neighborhood)}
+          </span>
+        `).join('<span class="ticker-sep">·</span>')}
       </div>
     </div>
 
@@ -839,19 +979,28 @@ function renderHome() {
       <p class="subhead">Three steps. No account. Under two minutes.</p>
       <div class="hiw-grid">
         <div class="hiw-card" data-step="1">
-          <div class="hiw-icon">📝</div>
-          <div class="hiw-title">Post in 90 seconds</div>
-          <p class="hiw-desc">Photo, location, contact. The form is minimal — optional details can come later. Your listing goes live immediately and matching starts.</p>
+          <div class="hiw-photo" style="background-image:url('${escapeHtml(hiRes(SCENE.post, 640, 440))}');"></div>
+          <div class="hiw-body">
+            <div class="hiw-icon">${icon('file-text')}</div>
+            <div class="hiw-title">Post in 90 seconds</div>
+            <p class="hiw-desc">Photo, location, contact. The form is minimal — optional details can come later. Your listing goes live immediately and matching starts.</p>
+          </div>
         </div>
         <div class="hiw-card" data-step="2">
-          <div class="hiw-icon">⚡</div>
-          <div class="hiw-title">Instant matching</div>
-          <p class="hiw-desc">Every listing is cross-referenced against the database in seconds — species, breed, color, ZIP, date, and photo similarity all scored automatically.</p>
+          <div class="hiw-photo" style="background-image:url('${escapeHtml(hiRes(SCENE.match, 640, 440))}');"></div>
+          <div class="hiw-body">
+            <div class="hiw-icon">${icon('zap')}</div>
+            <div class="hiw-title">Instant matching</div>
+            <p class="hiw-desc">Every listing is cross-referenced against the database in seconds — species, breed, color, ZIP, date, and photo similarity all scored automatically.</p>
+          </div>
         </div>
         <div class="hiw-card" data-step="3">
-          <div class="hiw-icon">🎉</div>
-          <div class="hiw-title">Get reunited</div>
-          <p class="hiw-desc">High-confidence matches trigger instant push and SMS alerts. All contact is routed through our private relay — your number is never exposed.</p>
+          <div class="hiw-photo" style="background-image:url('${escapeHtml(hiRes(SCENE.reunite, 640, 440))}');"></div>
+          <div class="hiw-body">
+            <div class="hiw-icon">${icon('check-circle')}</div>
+            <div class="hiw-title">Get reunited</div>
+            <p class="hiw-desc">High-confidence matches trigger instant push and SMS alerts. All contact is routed through our private relay — your number is never exposed.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -877,7 +1026,7 @@ function renderHome() {
     <div class="section-dark paw-bg">
       <div class="scam-warning-row">
         <div>
-          <h2 style="color:white; margin-bottom:8px; font-size:22px;">🛡️ Important: never pay before reunion</h2>
+          <h2 style="color:white; margin-bottom:8px; font-size:22px;">${icon('shield')} Important: never pay before reunion</h2>
           <p style="margin:0; font-size:15px;">If anyone texts or emails claiming to have your pet and asks for money — shipping fees, vet deposits, gift cards — it's a scam. This happens within hours of posting. Real finders never ask for payment. PawTrail automatically quarantines messages that mention money.</p>
         </div>
         <a href="#/advice/scams" class="btn" data-link style="background:rgba(255,255,255,.12); color:white; border-color:rgba(255,255,255,.3); flex-shrink:0; white-space:nowrap;">Scam guide →</a>
@@ -889,7 +1038,7 @@ function renderHome() {
          ============================ -->
     <section class="section-soft">
       <div class="section-row">
-        <h2 style="margin-bottom:0;">They made it home 🧡</h2>
+        <h2 style="margin-bottom:0;">They made it home</h2>
         <a href="#/listings?type=reunited" data-link style="font-size:14px; font-weight:600; color:var(--found);">All reunions →</a>
       </div>
       <p class="subhead" style="margin-bottom:18px;">Example outcomes for the review area. Replace these with verified user reviews once the service is live.</p>
@@ -898,7 +1047,7 @@ function renderHome() {
           <div class="testimonial">
             <div class="testimonial-photo" style="background-image:url('${escapeHtml(t.photo)}');"></div>
             <div class="testimonial-body">
-              <div class="testimonial-tag">✓ Reunited in ${t.hours}h</div>
+              <div class="testimonial-tag">${icon('check')} Reunited in ${t.hours}h</div>
               <p class="testimonial-quote">"${escapeHtml(t.story)}"</p>
               <div class="testimonial-name">
                 <div class="testimonial-avatar">${escapeHtml(t.initials)}</div>
@@ -944,10 +1093,14 @@ function renderHome() {
       </div>
       <div class="advice-grid">
         ${ARTICLES.slice(0, 4).map(a => html`
-          <a class="advice-card ${a.flagship ? "flagship" : ""}" href="#/advice/${a.id}" data-link>
-            <div class="icon">${a.icon}</div>
-            <h3>${escapeHtml(a.title)}</h3>
-            <p>${escapeHtml(a.summary)}</p>
+          <a class="advice-card has-photo ${a.flagship ? "flagship" : ""}" href="#/advice/${a.id}" data-link>
+            <div class="advice-photo" style="background-image:url('${escapeHtml(articleImg(a))}');">
+              <span class="advice-photo-icon">${dataIcon(a.icon)}</span>
+            </div>
+            <div class="advice-card-body">
+              <h3>${escapeHtml(a.title)}</h3>
+              <p>${escapeHtml(a.summary)}</p>
+            </div>
           </a>
         `).join("")}
       </div>
@@ -960,8 +1113,8 @@ function renderHome() {
       <h2>Ready to start?</h2>
       <p>Post a report in 90 seconds. Matching begins immediately. Free, forever.</p>
       <div class="cta-row" style="max-width:460px; margin:0 auto;">
-        <a href="#/lost" class="btn lost big" data-link>😰 I Lost a Pet</a>
-        <a href="#/found" class="btn found big" data-link>🤝 I Found a Pet</a>
+        <a href="#/lost" class="btn lost big" data-link>${icon('alert-circle')} I Lost a Pet</a>
+        <a href="#/found" class="btn found big" data-link>${icon('heart')} I Found a Pet</a>
       </div>
     </div>
   `;
@@ -1019,14 +1172,14 @@ function renderGlobalListings() {
     <p class="subhead">Real pet listings from verified shelter networks and partner organizations.</p>
 
     <div class="card" style="background:var(--found-soft); border-color:var(--found); margin-bottom:20px;">
-      <p style="margin:0; font-size:14px;" id="shelter-sync-banner">🌍 <strong>Shelter Sync Active:</strong> Listings are pulled live from verified partner shelters and adoption networks.</p>
+      <p style="margin:0; font-size:14px;" id="shelter-sync-banner">${icon('globe')} <strong>Shelter Sync Active:</strong> Listings are pulled live from verified partner shelters and adoption networks.</p>
     </div>
 
     ${sortBar()}
 
     ${items.length
       ? `<div class="list-grid" id="global-grid">${items.map(listingCard).join("")}</div>`
-      : `<div class="empty" id="global-empty"><div class="emoji">🌍</div><p>Loading shelter listings…</p></div>`}
+      : `<div class="empty" id="global-empty"><div class="emoji">${icon('globe')}</div><p>Loading shelter listings…</p></div>`}
   `;
   bindLinks();
   bindSort();
@@ -1037,7 +1190,7 @@ function renderGlobalListings() {
     const banner = document.getElementById("shelter-sync-banner");
     if (!banner || !loc?.city) return;
     const place = loc.city + (loc.regionCode ? ", " + loc.regionCode : "");
-    banner.innerHTML = `🌍 <strong>Shelter Sync Active · Near ${escapeHtml(place)}:</strong> Listings pulled live from verified shelters near your location.`;
+    banner.innerHTML = `${icon('globe')} <strong>Shelter Sync Active · Near ${escapeHtml(place)}:</strong> Listings pulled live from verified shelters near your location.`;
   });
 
   hydrateGlobalListings().then(added => {
@@ -1208,7 +1361,7 @@ function listingCard(l) {
   const tagText = l.status === "reunited" ? "Reunited" : (l.type === "lost" ? "Lost" : "Found");
   const title = l.name || (l.type === "found" ? `Found ${l.species}` : `Lost ${l.species}`);
   const meta = [l.breed, l.color, l.location].filter(Boolean).join(" · ");
-  const sourceLink = l.verifiedSource ? `<span style="color:var(--info); font-size:11px; display:block; margin-top:2px;">🔗 Source: Official Shelter Network</span>` : "";
+  const sourceLink = l.verifiedSource ? `<span style="color:var(--info); font-size:11px; display:block; margin-top:2px;">${icon('link')} Source: Official Shelter Network</span>` : "";
   const photoBg = l.photo ? escapeHtml(l.photo) : petAvatar(l);
   return html`
     <a class="listing" href="#/listing/${l.id}" data-link>
@@ -1250,15 +1403,15 @@ function renderListings() {
       <span class="chip ${initType==="all"?"active":""}" data-filter="type" data-value="all">All</span>
       <span class="chip ${initType==="lost"?"active":""}" data-filter="type" data-value="lost">Lost</span>
       <span class="chip ${initType==="found"?"active":""}" data-filter="type" data-value="found">Found</span>
-      <span class="chip ${initType==="reunited"?"active":""}" data-filter="type" data-value="reunited">Reunited ✓</span>
+      <span class="chip ${initType==="reunited"?"active":""}" data-filter="type" data-value="reunited">Reunited ${icon('check')}</span>
       <select id="filter-species">
         <option value="all" ${initSpecies==="all"?"selected":""}>All species</option>
-        <option value="dog" ${initSpecies==="dog"?"selected":""}>🐕 Dogs</option>
-        <option value="cat" ${initSpecies==="cat"?"selected":""}>🐈 Cats</option>
-        <option value="rabbit" ${initSpecies==="rabbit"?"selected":""}>🐇 Rabbits</option>
-        <option value="bird" ${initSpecies==="bird"?"selected":""}>🦜 Birds</option>
-        <option value="fish" ${initSpecies==="fish"?"selected":""}>🐟 Fish</option>
-        <option value="other" ${initSpecies==="other"?"selected":""}>🐾 Other</option>
+        <option value="dog" ${initSpecies==="dog"?"selected":""}>Dogs</option>
+        <option value="cat" ${initSpecies==="cat"?"selected":""}>Cats</option>
+        <option value="rabbit" ${initSpecies==="rabbit"?"selected":""}>Rabbits</option>
+        <option value="bird" ${initSpecies==="bird"?"selected":""}>Birds</option>
+        <option value="fish" ${initSpecies==="fish"?"selected":""}>Fish</option>
+        <option value="other" ${initSpecies==="other"?"selected":""}>Other</option>
       </select>
       <input id="filter-zip" type="text" placeholder="ZIP" maxlength="5" value="${escapeHtml(initZip)}" style="width:90px;" />
       <select id="filter-sort">
@@ -1283,7 +1436,7 @@ function renderListings() {
     const r = $("#results");
     r.innerHTML = items.length
       ? items.map(listingCard).join("")
-      : `<div class="empty" style="grid-column:1/-1;"><div class="emoji">🔍</div>No matching listings. Try widening your filters.</div>`;
+      : `<div class="empty" style="grid-column:1/-1;"><div class="emoji">${icon('search')}</div>No matching listings. Try widening your filters.</div>`;
     bindLinks();
   }
   apply();
@@ -1303,7 +1456,7 @@ function renderListings() {
 async function renderListingDetail(id) {
   const l = findListing(id);
   if (!l) {
-    $("#app").innerHTML = `<div class="empty"><div class="emoji">🔍</div>Listing not found. <a href="#/listings" data-link>Back to browse</a></div>`;
+    $("#app").innerHTML = `<div class="empty"><div class="emoji">${icon('search')}</div>Listing not found. <a href="#/listings" data-link>Back to browse</a></div>`;
     bindLinks(); return;
   }
   const matches = (await computeMatches(l)).slice(0, 3);
@@ -1313,7 +1466,7 @@ async function renderListingDetail(id) {
 
   const reunitedBanner = l.status === "reunited" ? html`
     <div class="reunion-banner">
-      <h2>🎉 ${escapeHtml(title)} is home!</h2>
+      <h2> ${escapeHtml(title)} is home!</h2>
       <p>Reunited ${fmtDate(l.reunitedAt)}. Thank you to everyone who shared and searched.</p>
     </div>
   ` : "";
@@ -1326,7 +1479,7 @@ async function renderListingDetail(id) {
         <div class="detail-photo" style="background-image:url('${l.photo ? escapeHtml(l.photo) : petAvatar(l)}')"></div>
         <div style="margin-top:14px; display:flex; gap:6px; flex-wrap:wrap;">
           <span class="tag-inline ${tagClass}">${tagText}</span>
-          ${l.verifiedSource ? `<span class="tag-inline" style="background:var(--info-soft);color:var(--info);">✓ Verified shelter</span>` : ""}
+          ${l.verifiedSource ? `<span class="tag-inline" style="background:var(--info-soft);color:var(--info);">${icon('check')} Verified shelter</span>` : ""}
           ${l.reward ? `<span class="tag-inline" style="background:var(--warn-soft);color:var(--warn);">Reward $${l.reward}</span>` : ""}
         </div>
         <h1 style="margin:10px 0 4px; font-size:26px; font-weight:800; letter-spacing:-.02em;">
@@ -1374,24 +1527,24 @@ async function renderListingDetail(id) {
         </div>
 
         <div class="card">
-          <h3 style="margin:0 0 10px; font-size:16px;">Share to find faster 🚀</h3>
+          <h3 style="margin:0 0 10px; font-size:16px;">Share to find faster </h3>
           <p class="muted" style="margin-bottom:12px; font-size:13px;">The first hour matters most. One share can reach hundreds of neighbors.</p>
           <div class="share-row">
-            <button class="btn small" data-share="facebook">📘 Facebook</button>
+            <button class="btn small" data-share="facebook">${icon('book')} Facebook</button>
             <button class="btn small" data-share="x">𝕏 Post</button>
-            <button class="btn small" data-share="nextdoor">🏘️ Nextdoor</button>
-            <button class="btn small" data-share="whatsapp">💬 WhatsApp</button>
-            <button class="btn small" data-share="sms">✉️ SMS</button>
-            <button class="btn small" data-share="copy">🔗 Copy link</button>
+            <button class="btn small" data-share="nextdoor">${icon('home')} Nextdoor</button>
+            <button class="btn small" data-share="whatsapp">${icon('message')} WhatsApp</button>
+            <button class="btn small" data-share="sms">${icon('mail')} SMS</button>
+            <button class="btn small" data-share="copy">${icon('link')} Copy link</button>
           </div>
-          <button class="btn block ghost" id="flyer-btn" style="margin-top:10px;">🖨️ Print flyer with QR code</button>
+          <button class="btn block ghost" id="flyer-btn" style="margin-top:10px;">${icon('printer')} Print flyer with QR code</button>
         </div>
 
         <div class="card">
           <h3 style="margin:0 0 10px; font-size:16px;">Actions</h3>
           ${l.type === "found" ? `<a class="btn block primary" href="#/reunite/${l.id}" data-link>This is my pet — claim</a>` : ""}
-          ${l.status === "active" ? `<button class="btn block" id="reunite-btn" style="margin-top:8px;">Mark as reunited 🎉</button>` : ""}
-          <button class="btn block ghost" id="report-btn" style="margin-top:8px;">⚑ Report this listing</button>
+          ${l.status === "active" ? `<button class="btn block" id="reunite-btn" style="margin-top:8px;">Mark as reunited </button>` : ""}
+          <button class="btn block ghost" id="report-btn" style="margin-top:8px;">${icon('flag')} Report this listing</button>
         </div>
       </aside>
     </div>
@@ -1689,7 +1842,7 @@ function renderForm(type) {
         <a href="#/" data-link class="muted" style="display:inline-block; margin-bottom:16px;">← Back</a>
 
         <div class="form-header">
-          <div class="form-header-icon" style="background:${accentColor};">${isLost ? "😰" : "🤝"}</div>
+          <div class="form-header-icon" style="background:${accentColor};">${isLost ? icon('alert-circle') : icon('heart')}</div>
           <div>
             <h1>${isLost ? "Report a lost pet" : "Report a found pet"}</h1>
             <p class="form-header-sub">${isLost
@@ -1700,7 +1853,7 @@ function renderForm(type) {
 
         ${isLost ? `
         <div class="scam-banner">
-          🛡️ <strong>Heads up:</strong> Scammers target lost-pet posts within hours. <strong>Never pay anyone before seeing your pet in person.</strong>
+          ${icon('shield')} <strong>Heads up:</strong> Scammers target lost-pet posts within hours. <strong>Never pay anyone before seeing your pet in person.</strong>
           <a href="#/advice/scams" data-link style="color:var(--warn-ink); font-weight:600; margin-left:4px;">What to watch for →</a>
         </div>` : ""}
 
@@ -1713,27 +1866,27 @@ function renderForm(type) {
               <label class="form-step-label">What kind of animal? *</label>
               <div class="species-tiles" id="species-row">
                 <button type="button" class="species-tile ${draft?.species === "dog" ? "active" : ""}" data-species="dog">
-                  <span class="species-tile-icon">🐕</span>
+                  <span class="species-tile-icon">${speciesIcon("dog")}</span>
                   <span>Dog</span>
                 </button>
                 <button type="button" class="species-tile ${draft?.species === "cat" ? "active" : ""}" data-species="cat">
-                  <span class="species-tile-icon">🐈</span>
+                  <span class="species-tile-icon">${speciesIcon("cat")}</span>
                   <span>Cat</span>
                 </button>
                 <button type="button" class="species-tile ${draft?.species === "rabbit" ? "active" : ""}" data-species="rabbit">
-                  <span class="species-tile-icon">🐇</span>
+                  <span class="species-tile-icon">${speciesIcon("rabbit")}</span>
                   <span>Rabbit</span>
                 </button>
                 <button type="button" class="species-tile ${draft?.species === "bird" ? "active" : ""}" data-species="bird">
-                  <span class="species-tile-icon">🦜</span>
+                  <span class="species-tile-icon">${speciesIcon("bird")}</span>
                   <span>Bird</span>
                 </button>
                 <button type="button" class="species-tile ${draft?.species === "fish" ? "active" : ""}" data-species="fish">
-                  <span class="species-tile-icon">🐟</span>
+                  <span class="species-tile-icon">${speciesIcon("fish")}</span>
                   <span>Fish</span>
                 </button>
                 <button type="button" class="species-tile ${draft?.species === "other" ? "active" : ""}" data-species="other">
-                  <span class="species-tile-icon">🐾</span>
+                  <span class="species-tile-icon">${speciesIcon("other")}</span>
                   <span>Other</span>
                 </button>
               </div>
@@ -1747,7 +1900,7 @@ function renderForm(type) {
               <label class="form-step-label">Upload a photo *</label>
               <p class="form-step-hint">A clear photo is the single biggest factor in a successful match.</p>
               <label class="photo-drop" for="photo-file">
-                <div class="photo-drop-icon">📷</div>
+                <div class="photo-drop-icon">${icon('camera')}</div>
                 <div class="photo-drop-text">Tap to choose a photo, or drag one here</div>
                 <div class="photo-drop-sub">JPG or PNG · max 10 MB · auto-resized</div>
                 <input id="photo-file" type="file" accept="image/*" multiple />
@@ -1765,7 +1918,7 @@ function renderForm(type) {
                 <label>Location last ${isLost ? "seen" : "found"}</label>
                 <div style="display:flex; gap:6px;">
                   <input type="text" id="location" placeholder="e.g. Riverbend Park, Pinecrest & 4th" value="${escapeHtml(draft?.location || "")}" required style="flex:1;" />
-                  <button type="button" class="btn small" id="geo-btn" title="Use my location">📍</button>
+                  <button type="button" class="btn small" id="geo-btn" title="Use my location"></button>
                 </div>
               </div>
               <div class="row" style="gap:10px; align-items:flex-start;">
@@ -1820,14 +1973,14 @@ function renderForm(type) {
             <div class="form-step-body">
               <label class="form-step-label">How should we reach you when we find a match? *</label>
               <input type="text" id="contact" placeholder="Your email or phone number" value="${escapeHtml(draft?.contact || "")}" required />
-              <p class="form-step-hint">🔒 Never shown publicly. All contact routes through our anonymous relay.</p>
+              <p class="form-step-hint">${icon('lock')} Never shown publicly. All contact routes through our anonymous relay.</p>
             </div>
           </div>
 
           <!-- OPTIONAL DETAILS -->
           <details class="form-optional" id="optional-details">
             <summary>
-              <span class="form-opt-title">➕ Add more details — speeds up matching significantly</span>
+              <span class="form-opt-title">${icon('plus')} Add more details — speeds up matching significantly</span>
               <span class="form-opt-sub">Breed, color, name, distinguishing features</span>
             </summary>
             <div class="form-opt-body">
@@ -1879,7 +2032,7 @@ function renderForm(type) {
           <!-- SUBMIT -->
           <div class="form-submit-area">
             <button type="submit" class="btn block big" style="background:${accentColor}; color:white; border-color:${accentColor}; font-size:18px; padding:18px;">
-              ${isLost ? "🔍 Submit lost report — start matching" : "✅ Submit found report — start matching"}
+              ${isLost ? `${icon('search')} Submit lost report - start matching` : `${icon('check-circle')} Submit found report - start matching`}
             </button>
             <div class="autosave" id="autosave-status"></div>
             <p class="form-anon-note">Anonymous posting allowed. Account creation offered after — not required.</p>
@@ -1890,7 +2043,7 @@ function renderForm(type) {
         <!-- ── Descriptive Form ─────────────────────────────────────── -->
         <div class="card" style="margin-top:28px; border-color:var(--info);">
           <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
-            <div style="width:40px; height:40px; border-radius:50%; background:var(--info); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">📋</div>
+            <div style="width:40px; height:40px; border-radius:50%; background:var(--info); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">${icon('clipboard')}</div>
             <div>
               <strong style="font-size:16px; display:block;">Descriptive Form</strong>
               <span class="muted" style="font-size:13px;">Optional — but greatly improves match accuracy. Add as much as you know.</span>
@@ -1901,7 +2054,7 @@ function renderForm(type) {
 
             <!-- 1. Pet Identity -->
             <div class="desc-section">
-              <div class="desc-section-head">🐾 Pet Identity</div>
+              <div class="desc-section-head">${pawIcon()} Pet Identity</div>
               <div class="row" style="gap:10px; flex-wrap:wrap;">
                 <div class="field" style="flex:1; min-width:150px;">
                   <label>Specific animal type</label>
@@ -1953,7 +2106,7 @@ function renderForm(type) {
 
             <!-- 2. Appearance -->
             <div class="desc-section">
-              <div class="desc-section-head">🎨 Appearance</div>
+              <div class="desc-section-head"> Appearance</div>
               <div class="row" style="gap:10px; flex-wrap:wrap;">
                 <div class="field" style="flex:1; min-width:130px;">
                   <label>Coat / fur length</label>
@@ -2036,7 +2189,7 @@ function renderForm(type) {
 
             <!-- 3. Identification -->
             <div class="desc-section">
-              <div class="desc-section-head">🏷️ Identification</div>
+              <div class="desc-section-head">${icon('tag')} Identification</div>
               <div class="row" style="gap:10px; flex-wrap:wrap;">
                 <div class="field" style="flex:1; min-width:120px;">
                   <label>Wearing a collar?</label>
@@ -2084,7 +2237,7 @@ function renderForm(type) {
 
             <!-- 4. Condition & Behavior -->
             <div class="desc-section">
-              <div class="desc-section-head">🧠 Condition &amp; Behavior</div>
+              <div class="desc-section-head"> Condition &amp; Behavior</div>
               <div class="row" style="gap:10px; flex-wrap:wrap;">
                 <div class="field" style="flex:1; min-width:170px;">
                   <label>Condition when ${isLost ? "last seen" : "found"}</label>
@@ -2139,7 +2292,7 @@ function renderForm(type) {
 
             <!-- 5. Health -->
             <div class="desc-section">
-              <div class="desc-section-head">❤️ Health</div>
+              <div class="desc-section-head"> Health</div>
               <div class="row" style="gap:10px; flex-wrap:wrap;">
                 <div class="field" style="flex:1; min-width:190px;">
                   <label>Known medical conditions</label>
@@ -2168,7 +2321,7 @@ function renderForm(type) {
             </div>
 
             <div style="border-top:1.5px solid var(--line); padding-top:16px; display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
-              <button type="submit" class="btn primary">💾 Save descriptive details</button>
+              <button type="submit" class="btn primary">${icon('save')} Save descriptive details</button>
               <p class="muted" style="font-size:13px; margin:0;">Saved details are included automatically when you submit the main report above.</p>
             </div>
 
@@ -2185,12 +2338,12 @@ function renderForm(type) {
         </div>
         <div id="sidebar-matches">
           <div class="sidebar-empty">
-            <div style="font-size:32px; margin-bottom:8px;">🔍</div>
+            <div style="font-size:32px; margin-bottom:8px;">${icon('search')}</div>
             <p>Select a species and enter your ZIP — we'll show potential matches from the database right here.</p>
           </div>
         </div>
         <div class="sidebar-tips">
-          <strong>💡 While you fill this out:</strong>
+          <strong>${icon('lightbulb')} While you fill this out:</strong>
           <ul>
             <li>More detail = better match accuracy</li>
             <li>A photo is the single biggest factor</li>
@@ -2221,7 +2374,7 @@ function initFormHandlers(type) {
         if (custom) {
           selected = custom.toLowerCase().trim();
           b.querySelector('span:last-child').textContent = custom;
-          b.querySelector('.species-tile-icon').textContent = speciesEmoji(selected);
+          b.querySelector('.species-tile-icon').innerHTML = speciesEmoji(selected);
         }
       }
       species = selected;
@@ -2240,7 +2393,7 @@ function initFormHandlers(type) {
         if (p) p.innerHTML = photos.map((src, i) => `
           <div style="position:relative; display:inline-block;">
             <img src="${src}" alt="Photo ${i+1}" />
-            <button onclick="this.parentElement.remove()" style="position:absolute;top:-6px;right:-6px;background:var(--lost);color:white;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;">✕</button>
+            <button onclick="this.parentElement.remove()" style="position:absolute;top:-6px;right:-6px;background:var(--lost);color:white;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;">${icon('x')}</button>
           </div>`).join("");
       };
       reader.readAsDataURL(f);
@@ -2416,7 +2569,7 @@ function initFormHandlers(type) {
       }).filter(([, v]) => v));
       state.draft = { ...(state.draft || {}), descriptive: filled };
       saveState();
-      toast("Descriptive details saved. They'll be included when you submit the report above. ✓");
+      toast("Descriptive details saved. They'll be included when you submit the report above. ");
     });
   }
 }
@@ -2430,7 +2583,7 @@ function updateLiveMatchBar(species, zip) {
   const oppCount = matches.filter(l => l.type !== (state.draft?.type || "lost")).length;
   bar.hidden = false;
   bar.innerHTML = oppCount > 0
-    ? `<span class="live-match-found">🎯 ${oppCount} ${species || "pet"} report${oppCount !== 1 ? "s" : ""} in your area could match — submitting this will cross-reference them all.</span>`
+    ? `<span class="live-match-found">${icon('target')} ${oppCount} ${species || "pet"} report${oppCount !== 1 ? "s" : ""} in your area could match — submitting this will cross-reference them all.</span>`
     : `<span class="live-match-none">No exact matches yet in your area — your report will alert anyone who posts later.</span>`;
 }
 
@@ -2444,7 +2597,7 @@ function updateSidebarMatches(species, zip) {
   ).slice(0, 4);
 
   if (!candidates.length) {
-    sb.innerHTML = `<div class="sidebar-empty"><div style="font-size:28px;margin-bottom:8px;">✓</div><p>No existing reports match yet — your listing will be ready to match as soon as someone posts.</p></div>`;
+    sb.innerHTML = `<div class="sidebar-empty"><div style="font-size:28px;margin-bottom:8px;">${icon('check')}</div><p>No existing reports match yet — your listing will be ready to match as soon as someone posts.</p></div>`;
     return;
   }
   sb.innerHTML = `
@@ -2474,7 +2627,7 @@ function showMatchReveal(listing, matches) {
   // Dramatic scanning animation first
   $("#app").innerHTML = `
     <div class="match-reveal-scanning">
-      <div class="scanning-icon">🔍</div>
+      <div class="scanning-icon">${icon('search')}</div>
       <h2>Scanning database…</h2>
       <p>Cross-referencing ${allListings().filter(l => l.status === "active").length} active listings by species, location, color, breed, date, and photo similarity.</p>
       <div class="scanning-bar"><div class="scanning-fill" id="scan-fill"></div></div>
@@ -2499,7 +2652,7 @@ function showMatchReveal(listing, matches) {
       <div class="match-reveal">
 
         <div class="match-reveal-hero ${hasMatches ? "has-matches" : ""}">
-          <div class="reveal-icon">${hasMatches ? (highConf.length ? "🎯" : "📡") : "✅"}</div>
+          <div class="reveal-icon">${hasMatches ? (highConf.length ? icon('target') : icon('broadcast')) : icon('check-circle')}</div>
           <h1>${hasMatches
             ? (highConf.length ? `${highConf.length} high-confidence match${highConf.length > 1 ? "es" : ""} found!` : `${topMatches.length} possible match${topMatches.length > 1 ? "es" : ""} found`)
             : "Your listing is live!"}</h1>
@@ -2514,7 +2667,7 @@ function showMatchReveal(listing, matches) {
             ${topMatches.map(m => html`
               <div class="match-result-card ${m.score >= 0.75 ? "high" : m.score >= 0.5 ? "medium" : ""}">
                 <div class="match-result-score">
-                  ${m.score >= 0.95 ? "🌟 PERFECT" : m.score >= 0.75 ? "🔴 HIGH" : m.score >= 0.5 ? "🟡 MEDIUM" : m.score < 0.2 ? "⚪ UNCOMMON" : "🔵 LOW"}
+                  ${m.score >= 0.95 ? " PERFECT" : m.score >= 0.75 ? " HIGH" : m.score >= 0.5 ? " MEDIUM" : m.score < 0.2 ? " UNCOMMON" : " LOW"}
                   <strong>${Math.round(m.score * 100)}% match</strong>
                   <span class="match-reasons">${escapeHtml(m.reasons.join(" · "))}</span>
                 </div>
@@ -2547,22 +2700,22 @@ function showMatchReveal(listing, matches) {
           <h2>Next steps</h2>
           <div class="reveal-steps-grid">
             <a href="#/share-wizard/${listing.id}" class="reveal-step" data-link>
-              <div class="reveal-step-icon">📣</div>
+              <div class="reveal-step-icon">${icon('megaphone')}</div>
               <strong>Share your listing</strong>
               <p>Facebook groups, Nextdoor, WhatsApp — one share in the first hour is worth 10 tomorrow.</p>
             </a>
             <a href="#/advice/first-24-hours" class="reveal-step" data-link>
-              <div class="reveal-step-icon">⏱️</div>
+              <div class="reveal-step-icon">${icon('clock')}</div>
               <strong>First 24 hours guide</strong>
               <p>Calm, proven checklist for the next few hours. Covers shelters, flyers, neighbors, scent.</p>
             </a>
             <a href="#/listing/${listing.id}" class="reveal-step" data-link>
-              <div class="reveal-step-icon">📋</div>
+              <div class="reveal-step-icon">${icon('clipboard')}</div>
               <strong>View your listing</strong>
               <p>Print a flyer, edit details, and track who's seen it. You can add more photos any time.</p>
             </a>
             <a href="#/community" class="reveal-step" data-link>
-              <div class="reveal-step-icon">💬</div>
+              <div class="reveal-step-icon">${icon('message')}</div>
               <strong>Post in community</strong>
               <p>Let neighbors know directly — someone nearby might have already seen your pet.</p>
             </a>
@@ -2588,9 +2741,9 @@ function showMatchReveal(listing, matches) {
 
 // ---------- community ----------
 function communityPostCard(p, compact = false) {
-  const typeLabels = { sighting: "Sighting", reunion: "Reunited! 🎉", tip: "Tip", question: "Question", support: "Support" };
-  const pinHtml = p.pinned ? `<span style="font-size:12px;color:var(--warn);font-weight:600;margin-right:6px;">📌 Pinned</span>` : "";
-  const listingLink = p.relatedListing ? html`<a class="post-listing-link" href="#/listing/${p.relatedListing}" data-link>🐾 View listing: ${findListing(p.relatedListing)?.name || p.relatedListing}</a>` : "";
+  const typeLabels = { sighting: "Sighting", reunion: "Reunited! ", tip: "Tip", question: "Question", support: "Support" };
+  const pinHtml = p.pinned ? `<span style="font-size:12px;color:var(--warn);font-weight:600;margin-right:6px;">${icon('map-pin')} Pinned</span>` : "";
+  const listingLink = p.relatedListing ? html`<a class="post-listing-link" href="#/listing/${p.relatedListing}" data-link>${pawIcon()} View listing: ${findListing(p.relatedListing)?.name || p.relatedListing}</a>` : "";
   const reactTotal = Object.values(p.reactions || {}).reduce((a, b) => a + b, 0);
   return html`
     <div class="community-post">
@@ -2605,11 +2758,11 @@ function communityPostCard(p, compact = false) {
       <div class="post-content">${escapeHtml(p.content)}</div>
       ${listingLink}
       <div class="post-reactions">
-        <button class="reaction-btn" data-post="${p.id}" data-reaction="heart">❤️ ${p.reactions.heart || 0}</button>
-        <button class="reaction-btn" data-post="${p.id}" data-reaction="hug">🤗 ${p.reactions.hug || 0}</button>
-        <button class="reaction-btn" data-post="${p.id}" data-reaction="clap">👏 ${p.reactions.clap || 0}</button>
-        <button class="reaction-btn" data-post="${p.id}" data-reaction="hope">🙏 ${p.reactions.hope || 0}</button>
-        ${p.comments ? `<span class="post-comment-count">💬 ${p.comments} comments</span>` : ""}
+        <button class="reaction-btn" data-post="${p.id}" data-reaction="heart"> ${p.reactions.heart || 0}</button>
+        <button class="reaction-btn" data-post="${p.id}" data-reaction="hug"> ${p.reactions.hug || 0}</button>
+        <button class="reaction-btn" data-post="${p.id}" data-reaction="clap"> ${p.reactions.clap || 0}</button>
+        <button class="reaction-btn" data-post="${p.id}" data-reaction="hope"> ${p.reactions.hope || 0}</button>
+        ${p.comments ? `<span class="post-comment-count">${icon('message')} ${p.comments} comments</span>` : ""}
       </div>
     </div>
   `;
@@ -2633,7 +2786,7 @@ function renderCommunity() {
       <div style="margin-bottom:10px;">
         <label style="font-size:13px; font-weight:600; color:var(--ink-soft); margin-bottom:6px; display:block;">Post type</label>
         <div class="row" style="gap:6px; flex-wrap:wrap;">
-          ${[["sighting","🔍 Sighting"],["tip","💡 Tip"],["question","❓ Question"],["reunion","🎉 Reunion"],["support","💛 Support"]].map(([v, label]) =>
+          ${[["sighting",`${icon('search')} Sighting`],["tip",`${icon('lightbulb')} Tip`],["question",`${icon('help-circle')} Question`],["reunion","Reunion"],["support","Support"]].map(([v, label]) =>
             `<button class="chip post-type-btn" data-type="${v}">${label}</button>`).join("")}
         </div>
       </div>
@@ -2699,7 +2852,8 @@ function renderCommunity() {
     toast("Posted to the community board.");
     $("#community-feed").insertAdjacentHTML("afterbegin", communityPostCard(post));
     bindLinks();
-    $(".reaction-btn").addEventListener("click", handleReaction);
+    const newCard = $("#community-feed").firstElementChild;
+    newCard?.querySelectorAll(".reaction-btn").forEach(b => b.addEventListener("click", handleReaction));
   });
 
   $$(".chip[data-cfilter]").forEach(c => c.addEventListener("click", () => {
@@ -2710,7 +2864,7 @@ function renderCommunity() {
     const filtered = f === "all" ? allP : allP.filter(p => p.type === f);
     feed.innerHTML = filtered.length
       ? filtered.map(p => communityPostCard(p)).join("")
-      : `<div class="empty"><div class="emoji">💬</div>No ${f} posts yet. Be the first!</div>`;
+      : `<div class="empty"><div class="emoji">${icon('message')}</div>No ${f} posts yet. Be the first!</div>`;
     bindLinks();
     $$(".reaction-btn").forEach(b => b.addEventListener("click", handleReaction));
   }));
@@ -2726,7 +2880,7 @@ function handleReaction(e) {
   if (!b.classList.contains("reacted")) {
     post.reactions[reaction] = (post.reactions[reaction] || 0) + 1;
     b.classList.add("reacted");
-    b.textContent = { heart: "❤️", hug: "🤗", clap: "👏", hope: "🙏" }[reaction] + " " + post.reactions[reaction];
+    b.textContent = { heart: "", hug: "", clap: "", hope: "" }[reaction] + " " + post.reactions[reaction];
   }
   saveState();
 }
@@ -2735,7 +2889,7 @@ function handleReaction(e) {
 function tipCard(t) {
   return html`
     <div class="tip-card">
-      <div class="tip-icon">${t.icon}</div>
+      <div class="tip-icon">${dataIcon(t.icon)}</div>
       <div class="tip-body">
         <strong>${escapeHtml(t.title)}</strong>
         <p>${escapeHtml(t.text)}</p>
@@ -2775,7 +2929,7 @@ function renderTips() {
     const filtered = cat === "all" ? TIPS : TIPS.filter(t => t.category === cat);
     $("#tips-grid").innerHTML = filtered.length
       ? filtered.map(tipCard).join("")
-      : `<div class="empty"><div class="emoji">💡</div>No tips in this category yet.</div>`;
+      : `<div class="empty"><div class="emoji">${icon('lightbulb')}</div>No tips in this category yet.</div>`;
   }));
 }
 
@@ -2786,10 +2940,14 @@ function renderAdviceIndex() {
     <p class="subhead">Practical, written-for-panic guides. Skim the checklists first.</p>
     <div class="advice-grid">
       ${ARTICLES.map(a => html`
-        <a class="advice-card ${a.flagship ? "flagship" : ""}" href="#/advice/${a.id}" data-link>
-          <div class="icon">${a.icon}</div>
-          <h3>${escapeHtml(a.title)}</h3>
-          <p>${escapeHtml(a.summary)}</p>
+        <a class="advice-card has-photo ${a.flagship ? "flagship" : ""}" href="#/advice/${a.id}" data-link>
+          <div class="advice-photo" style="background-image:url('${escapeHtml(articleImg(a))}');">
+            <span class="advice-photo-icon">${dataIcon(a.icon)}</span>
+          </div>
+          <div class="advice-card-body">
+            <h3>${escapeHtml(a.title)}</h3>
+            <p>${escapeHtml(a.summary)}</p>
+          </div>
         </a>
       `).join("")}
     </div>
@@ -2803,7 +2961,8 @@ function renderArticle(id) {
   $("#app").innerHTML = html`
     <article class="article">
       <a href="#/advice" data-link class="muted">← All advice</a>
-      <h1 style="margin-top:14px;">${escapeHtml(a.title)}</h1>
+      <div class="article-hero" style="background-image:url('${escapeHtml(articleImg(a, 1100, 520))}');"></div>
+      <h1 style="margin-top:0;">${escapeHtml(a.title)}</h1>
       ${a.body}
       <div class="next-step">
         <strong>Next step:</strong>
@@ -2863,7 +3022,7 @@ function renderHelpline() {
         `).join("")}
       </div>
       <div class="callout info" style="margin-top:22px;">
-        <strong>PawTrail async support:</strong> Email help@pawtrail.example — 4-hour SLA 9am–9pm local, 12-hour overnight. Or use the chat assistant (💬 button).
+        <strong>PawTrail async support:</strong> Email help@pawtrail.example — 4-hour SLA 9am–9pm local, 12-hour overnight. Or use the chat assistant (${icon('message')} button).
       </div>
     </article>
   `;
@@ -2877,7 +3036,7 @@ function updateAuthUI() {
   const label = state.user ? (state.user.email?.split("@")[0] || "Account") : "Login";
   const href = state.user ? "#/profile" : "#/login";
   if (link) { link.textContent = label; link.href = href; }
-  if (mLink) { mLink.textContent = "👤 " + label; mLink.href = href; }
+  if (mLink) { mLink.textContent = " " + label; mLink.href = href; }
 }
 
 function renderLogin() {
@@ -2887,7 +3046,7 @@ function renderLogin() {
     $("#app").innerHTML = html`
       <div class="card" style="max-width:400px; margin:60px auto; padding:32px;">
         <div style="text-align:center; margin-bottom:24px;">
-          <div style="font-size:40px; margin-bottom:12px;">🐾</div>
+          <div style="font-size:40px; margin-bottom:12px;">${pawIcon()}</div>
           <h1 style="font-size:24px; font-weight:800; margin:0;">${isSignup ? "Create account" : "Welcome back"}</h1>
           <p class="muted" style="margin-top:6px;">${isSignup ? "Join the community to track your pets." : "Log in to manage your listings."}</p>
         </div>
@@ -3008,7 +3167,7 @@ function showLocationCookiePrompt() {
   if (state.cookieConsent) return; // already decided this session or a previous visit
   const m = openModal(html`
     <div style="max-width:380px; padding:6px;">
-      <div style="font-size:40px; margin-bottom:10px; text-align:center;">🍪</div>
+      <div style="font-size:40px; margin-bottom:10px; text-align:center;"></div>
       <h3 style="margin:0 0 8px; text-align:center;">Cookies &amp; Location</h3>
       <p class="muted" style="font-size:14px; margin-bottom:6px;">We use cookies to save your draft reports, bookmarks, and settings between visits. Location access lets us show nearby cases first.</p>
       <p class="muted" style="font-size:13px; margin-bottom:18px;">You can post reports and browse without either — nothing here requires an account.</p>
@@ -3050,7 +3209,7 @@ function openContactModal(l) {
     <h3>Message ${escapeHtml(l.poster?.name || "the poster")}</h3>
     <p class="muted" style="font-size:13px; margin-top:0;">Sent through PawTrail relay — your info stays private.</p>
     <textarea id="msg-body" placeholder="Hi — I think I might have seen your ${l.species}…" style="width:100%; min-height:100px; padding:12px; border-radius:9px; border:1.5px solid var(--line); font-family:inherit; font-size:14px; resize:vertical; outline:none;"></textarea>
-    <p class="muted" style="font-size:12px; margin-top:6px;">⚠️ Messages mentioning payment, gift cards, or wire transfers will be flagged and quarantined.</p>
+    <p class="muted" style="font-size:12px; margin-top:6px;">${icon('alert-triangle')} Messages mentioning payment, gift cards, or wire transfers will be flagged and quarantined.</p>
     <div class="actions">
       <button class="btn ghost" data-close>Cancel</button>
       <button class="btn primary" id="msg-send">Send via relay</button>
@@ -3061,7 +3220,7 @@ function openContactModal(l) {
     const body = m.querySelector("#msg-body").value.trim();
     if (!body) { toast("Write a message first."); return; }
     if (/(\$|paypal|venmo|wire|gift card|shipping fee|deposit)/i.test(body)) {
-      toast("⚠️ Message flagged for payment mention — held for review.");
+      toast("Message flagged for payment mention — held for review.");
     } else {
       toast("Message sent. The poster will see it shortly.");
     }
@@ -3152,7 +3311,7 @@ function renderAlerts() {
   const list = $("#alerts-list");
   if (!list) return;
   if (!state.alerts.length) {
-    list.innerHTML = `<div class="empty"><div class="emoji">🔔</div>No alerts yet. We'll ping you the moment a match comes in.</div>`;
+    list.innerHTML = `<div class="empty"><div class="emoji">${icon('bell')}</div>No alerts yet. We'll ping you the moment a match comes in.</div>`;
   } else {
     list.innerHTML = state.alerts.map(a => {
       const m = findListing(a.matchId);
@@ -3309,6 +3468,9 @@ function closeMobileNav() {
 // ---------- init ----------
 function init() {
   loadState();
+  // Bring the AI engine (ai-engine.js) online before any interaction so it can
+  // wire its matching / assistant / abuse-defence brain over the app surface.
+  try { window.PawTrailAI?.init?.(); } catch (e) { /* engine optional */ }
   getIpLocation();          // pre-warm so location is cached before user visits Global
   hydrateRemoteListings();
   hydrateRemoteCommunityPosts();

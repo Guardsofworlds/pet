@@ -13,7 +13,11 @@
 <meta property="og:type" content="website" />
 <meta property="og:image" content="https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=1200&h=630&fit=crop" />
 <link rel="manifest" href="manifest.json" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23db6a1f'%3E%3Cellipse cx='6' cy='11' rx='2' ry='2.6'/%3E%3Cellipse cx='10' cy='7.4' rx='2' ry='2.6'/%3E%3Cellipse cx='14' cy='7.4' rx='2' ry='2.6'/%3E%3Cellipse cx='18' cy='11' rx='2' ry='2.6'/%3E%3Cpath d='M12 12.5c-2.6 0-4.8 2.1-4.8 4 0 1.5 1.2 2.3 2.7 2.3.9 0 1.4-.4 2.1-.4s1.2.4 2.1.4c1.5 0 2.7-.8 2.7-2.3 0-1.9-2.2-4-4.8-4Z'/%3E%3C/svg%3E" />
+<!-- Type system: Cabinet Grotesk (display) + Satoshi (text). Falls back to the
+     system stack if offline, so the PWA still renders perfectly without them. -->
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800,900&f[]=satoshi@400,500,700,900&display=swap" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -21,7 +25,7 @@
 <!-- PWA install banner -->
 <div class="install-banner" id="install-banner" hidden>
   <div class="install-banner-body">
-    <span class="install-icon">🐾</span>
+    <span class="install-icon"><svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><ellipse cx="6" cy="11" rx="2" ry="2.6"/><ellipse cx="10" cy="7.4" rx="2" ry="2.6"/><ellipse cx="14" cy="7.4" rx="2" ry="2.6"/><ellipse cx="18" cy="11" rx="2" ry="2.6"/><path d="M12 12.5c-2.6 0-4.8 2.1-4.8 4 0 1.5 1.2 2.3 2.7 2.3.9 0 1.4-.4 2.1-.4s1.2.4 2.1.4c1.5 0 2.7-.8 2.7-2.3 0-1.9-2.2-4-4.8-4Z"/></svg></span>
     <div>
       <strong>Install PawTrail</strong>
       <div class="install-sub">Works offline · Fast alerts · No app store needed</div>
@@ -36,15 +40,15 @@
 <!-- Tip of the day bar -->
 <div class="tip-bar" id="tip-bar">
   <div class="tip-bar-inner">
-    <span class="tip-label">💡 Tip</span>
+    <span class="tip-label"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.4.9 1 .9 1.7V16h5.4v-.5c0-.7.3-1.3.9-1.7A6 6 0 0 0 12 3Z"/></svg> Tip</span>
     <span id="tip-bar-text"></span>
   </div>
-  <button class="tip-bar-close" id="tip-bar-close" aria-label="Dismiss tip">✕</button>
+  <button class="tip-bar-close" id="tip-bar-close" aria-label="Dismiss tip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
 </div>
 
 <header class="topbar" id="topbar">
   <a href="#/" class="brand" data-link>
-    <span class="paw">🐾</span><span>PawTrail</span>
+    <span class="paw"><svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><ellipse cx="6" cy="11" rx="2" ry="2.6"/><ellipse cx="10" cy="7.4" rx="2" ry="2.6"/><ellipse cx="14" cy="7.4" rx="2" ry="2.6"/><ellipse cx="18" cy="11" rx="2" ry="2.6"/><path d="M12 12.5c-2.6 0-4.8 2.1-4.8 4 0 1.5 1.2 2.3 2.7 2.3.9 0 1.4-.4 2.1-.4s1.2.4 2.1.4c1.5 0 2.7-.8 2.7-2.3 0-1.9-2.2-4-4.8-4Z"/></svg></span><span>PawTrail</span>
   </a>
   <nav class="nav" id="nav-links">
     <a href="#/listings" data-link>Browse</a>
@@ -55,12 +59,12 @@
     <a href="#/shelter" data-link>Shelters</a>
     <a href="#/my-listings" data-link>My Listings</a>
     <a href="#/login" data-link id="nav-auth">Login</a>
-    <button class="btn-icon" id="search-btn" title="Search" aria-label="Search">🔎</button>
+    <button class="btn-icon" id="search-btn" title="Search" aria-label="Search"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
     <button class="btn-icon" id="alerts-btn" title="Alerts" aria-label="Alerts">
-      🔔<span class="badge" id="alerts-badge" hidden>0</span>
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="badge" id="alerts-badge" hidden>0</span>
     </button>
-    <button class="btn-icon" id="darkmode-btn" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
-    <button class="btn-icon" id="sound-btn" title="Calm soundtrack: off" aria-label="Turn on calm soundtrack">🔈</button>
+    <button class="btn-icon" id="darkmode-btn" title="Toggle dark mode" aria-label="Toggle dark mode"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg></button>
+    <button class="btn-icon" id="sound-btn" title="Calm soundtrack: off" aria-label="Turn on calm soundtrack"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg></button>
   </nav>
   <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
     <span></span><span></span><span></span>
@@ -71,24 +75,24 @@
 <div class="mobile-nav-overlay" id="mobile-nav-overlay" hidden></div>
 <nav class="mobile-nav" id="mobile-nav" hidden aria-label="Mobile navigation">
   <div class="mobile-nav-head">
-    <a href="#/" class="brand" data-link>🐾 PawTrail</a>
-    <button class="iconbtn" id="mobile-nav-close" type="button" aria-label="Close menu">✕</button>
+    <a href="#/" class="brand" data-link><svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><ellipse cx="6" cy="11" rx="2" ry="2.6"/><ellipse cx="10" cy="7.4" rx="2" ry="2.6"/><ellipse cx="14" cy="7.4" rx="2" ry="2.6"/><ellipse cx="18" cy="11" rx="2" ry="2.6"/><path d="M12 12.5c-2.6 0-4.8 2.1-4.8 4 0 1.5 1.2 2.3 2.7 2.3.9 0 1.4-.4 2.1-.4s1.2.4 2.1.4c1.5 0 2.7-.8 2.7-2.3 0-1.9-2.2-4-4.8-4Z"/></svg> PawTrail</a>
+    <button class="iconbtn" id="mobile-nav-close" type="button" aria-label="Close menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
-  <a href="#/listings" data-link class="mobile-nav-link">🗺️ Browse listings</a>
-  <a href="#/global" data-link class="mobile-nav-link">🌍 Global listings</a>
-  <a href="#/my-listings" data-link class="mobile-nav-link">📋 My listings</a>
-  <a href="#/community" data-link class="mobile-nav-link">💬 Community</a>
-  <a href="#/tips" data-link class="mobile-nav-link">💡 Tips</a>
-  <a href="#/advice" data-link class="mobile-nav-link">📖 Advice center</a>
-  <a href="#/shelter" data-link class="mobile-nav-link">🏥 Shelter portal</a>
-  <button type="button" class="mobile-nav-link" id="mobile-sound-btn" style="background:none;border:none;text-align:left;width:100%;font:inherit;cursor:pointer;">🔈 Calm soundtrack</button>
-  <a href="#/settings" data-link class="mobile-nav-link">⚙️ Notification settings</a>
-  <a href="#/about" data-link class="mobile-nav-link">ℹ️ About</a>
-  <a href="#/login" data-link class="mobile-nav-link" id="mobile-nav-auth">👤 Login</a>
-  <a href="#/help" data-link class="mobile-nav-link">📞 Helpline directory</a>
+  <a href="#/listings" data-link class="mobile-nav-link"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 4-6 2v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg> Browse listings</a>
+  <a href="#/global" data-link class="mobile-nav-link"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/></svg> Global listings</a>
+  <a href="#/my-listings" data-link class="mobile-nav-link"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg> My listings</a>
+  <a href="#/community" data-link class="mobile-nav-link"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8 8 0 0 1-11.7 7L3 21l2.5-6.3A8 8 0 1 1 21 11.5Z"/></svg> Community</a>
+  <a href="#/tips" data-link class="mobile-nav-link"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.4.9 1 .9 1.7V16h5.4v-.5c0-.7.3-1.3.9-1.7A6 6 0 0 0 12 3Z"/></svg> Tips</a>
+  <a href="#/advice" data-link class="mobile-nav-link"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14Z"/><path d="M4 19.5V21h14"/></svg> Advice center</a>
+  <a href="#/shelter" data-link class="mobile-nav-link"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 7h1m4 0h1M9 11h1m4 0h1M9 15h1m4 0h1"/></svg> Shelter portal</a>
+  <button type="button" class="mobile-nav-link" id="mobile-sound-btn" style="background:none;border:none;text-align:left;width:100%;font:inherit;cursor:pointer;"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg> Calm soundtrack</button>
+  <a href="#/settings" data-link class="mobile-nav-link"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg> Notification settings</a>
+  <a href="#/about" data-link class="mobile-nav-link"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg> About</a>
+  <a href="#/login" data-link class="mobile-nav-link" id="mobile-nav-auth"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Login</a>
+  <a href="#/help" data-link class="mobile-nav-link"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/></svg> Helpline directory</a>
   <div class="mobile-nav-ctas">
-    <a href="#/lost" class="btn lost block" data-link>😰 I Lost a Pet</a>
-    <a href="#/found" class="btn found block" data-link style="margin-top:8px;">🤝 I Found a Pet</a>
+    <a href="#/lost" class="btn lost block" data-link><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg> I Lost a Pet</a>
+    <a href="#/found" class="btn found block" data-link style="margin-top:8px;"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 5.6a5.5 5.5 0 0 0-7.8 0L12 6.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1 7.8 7.8 7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg> I Found a Pet</a>
   </div>
 </nav>
 
@@ -98,7 +102,7 @@
 <div class="search-overlay" id="search-overlay" hidden>
   <div class="search-box">
     <input type="text" id="search-input" placeholder="Search by pet name, breed, neighborhood…" autocomplete="off" />
-    <button class="iconbtn" id="search-close" type="button" aria-label="Close search">✕</button>
+    <button class="iconbtn" id="search-close" type="button" aria-label="Close search"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
   <div class="search-results" id="search-results"></div>
 </div>
@@ -108,14 +112,14 @@
 
 <!-- Assistant drawer -->
 <button class="fab" id="assistant-fab" title="Ask PawTrail Assistant" aria-label="Open assistant">
-  <span class="fab-icon">💬</span>
+  <span class="fab-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8 8 0 0 1-11.7 7L3 21l2.5-6.3A8 8 0 1 1 21 11.5Z"/></svg></span>
   <span class="fab-label">Ask us anything</span>
 </button>
 
 <aside class="drawer" id="assistant-drawer" aria-label="PawTrail Assistant">
   <div class="drawer-head">
     <div class="drawer-head-title">
-      <div class="assistant-avatar">🐾</div>
+      <div class="assistant-avatar"><svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><ellipse cx="6" cy="11" rx="2" ry="2.6"/><ellipse cx="10" cy="7.4" rx="2" ry="2.6"/><ellipse cx="14" cy="7.4" rx="2" ry="2.6"/><ellipse cx="18" cy="11" rx="2" ry="2.6"/><path d="M12 12.5c-2.6 0-4.8 2.1-4.8 4 0 1.5 1.2 2.3 2.7 2.3.9 0 1.4-.4 2.1-.4s1.2.4 2.1.4c1.5 0 2.7-.8 2.7-2.3 0-1.9-2.2-4-4.8-4Z"/></svg></div>
       <div>
         <strong>PawTrail Assistant</strong>
         <div class="drawer-subline">Online · Replies instantly</div>
@@ -138,14 +142,14 @@
     <button class="btn small primary" type="submit">Send</button>
   </form>
   <p class="chat-disclaimer">For emergencies (injured animal, scam, custody dispute) tap below.</p>
-  <button class="btn small ghost" id="chat-escalate">🆘 Get human help →</button>
+  <button class="btn small ghost" id="chat-escalate"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m4.9 4.9 4.2 4.2M14.8 14.8l4.3 4.3M14.8 9.1l4.3-4.2M4.9 19.1l4.2-4.2"/></svg> Get human help</button>
 </aside>
 
 <!-- Alerts drawer -->
 <aside class="drawer" id="alerts-drawer" aria-label="Match alerts">
   <div class="drawer-head">
     <div class="drawer-head-title">
-      <div class="assistant-avatar">🔔</div>
+      <div class="assistant-avatar"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
       <div>
         <strong>Match alerts</strong>
         <div class="drawer-subline">Real-time pet matches</div>
@@ -157,7 +161,7 @@
   </div>
   <div id="alerts-list" class="alerts-list"></div>
   <div style="padding:12px; border-top:1px solid var(--line);">
-    <a href="#/settings" data-link class="btn small ghost block">⚙️ Manage alert preferences</a>
+    <a href="#/settings" data-link class="btn small ghost block"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg> Manage alert preferences</a>
   </div>
 </aside>
 
@@ -169,13 +173,13 @@
 <footer class="foot">
   <div class="foot-grid">
     <div class="foot-brand">
-      <div class="foot-logo">🐾 PawTrail</div>
+      <div class="foot-logo"><svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><ellipse cx="6" cy="11" rx="2" ry="2.6"/><ellipse cx="10" cy="7.4" rx="2" ry="2.6"/><ellipse cx="14" cy="7.4" rx="2" ry="2.6"/><ellipse cx="18" cy="11" rx="2" ry="2.6"/><path d="M12 12.5c-2.6 0-4.8 2.1-4.8 4 0 1.5 1.2 2.3 2.7 2.3.9 0 1.4-.4 2.1-.4s1.2.4 2.1.4c1.5 0 2.7-.8 2.7-2.3 0-1.9-2.2-4-4.8-4Z"/></svg> PawTrail</div>
       <p>Free. Fast. Built for the panicked first hour. Most pets are found within 5 miles of home — we make sure your neighbors know to look.</p>
       <div class="foot-trust">
-        <span class="trust-badge">🔒 Private relay</span>
-        <span class="trust-badge">🆓 Free forever</span>
-        <span class="trust-badge">🚫 No ads</span>
-        <span class="trust-badge">📱 Installable</span>
+        <span class="trust-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Private relay</span>
+        <span class="trust-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Free forever</span>
+        <span class="trust-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg> No ads</span>
+        <span class="trust-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg> Installable</span>
       </div>
     </div>
     <div class="foot-col">
@@ -207,7 +211,7 @@
     <span>·</span>
     <span>Demo — starter examples are fictional</span>
     <span>·</span>
-    <span>Built with 🧡 for pets and the people who love them</span>
+    <span>Built for pets and the people who love them</span>
   </div>
 </footer>
 
@@ -242,5 +246,7 @@ window.PAWTRAIL_PETFINDER = {
 <script src="supabase-client.js"></script>
 <script src="app.js"></script>
 <script src="features.js"></script>
+<script src="ai-engine.js"></script>
+<script src="ai-mind.js"></script>
 </body>
 </html>
