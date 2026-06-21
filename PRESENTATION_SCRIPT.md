@@ -265,13 +265,16 @@ cookie/location bar once, so it's gone during the demo. Have the **Browse** page
   and let them look. That one screen is the whole pitch.
 - **The lines are your pace.** One line, one breath. Don't rush to fill the silence at
   the blank lines — that pause is doing the work.
-- **If the internet is flaky:** the app works fully offline on seed data, so the demo
-  still runs. The Browse/Global pages may show fewer listings offline — that's fine,
-  the Rusty match still works because it's local data.
+- **Treat a connection as required.** This is a server app, not an offline one — live
+  matching across devices needs the network, so check your wifi before you go on. The
+  built-in demo cases (Rusty included) ship with the app and still render if the signal
+  stutters, so your signature match is safe — just don't promise live cross-device
+  reunions unless the server is reachable.
 - **If someone asks "is the data real?":** Be honest — the sample cases are
-  illustrative for the demo, but the *matching, the shelter feed, and the scam
-  detection are real working features*, not mockups. (The Global page pulls live
-  from real open shelter data.)
+  illustrative for the demo, but the *matching engine, the shelter feed, and the scam
+  detection are real, working code*, not mockups. The shelter feed pulls live from real
+  open shelter data. Connecting two strangers on different devices needs the shared
+  server switched on — that's a config step, not a rebuild.
 - **Total runtime:** ~6–7 minutes talking + demo. If you're tight, cut the
   "isn't a mockup" feature list down to just matching + free.
 

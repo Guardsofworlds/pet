@@ -1,23 +1,26 @@
 # 🐾 PawTrail
 
 Reunite lost pets, fast. A free, no-account, installable (PWA) web app for reporting
-lost & found pets, getting instant matches, and reaching neighbors. Works fully offline
-on a single device, and syncs across devices when connected to Supabase.
+lost & found pets, getting instant matches, and reaching neighbors. It runs on a shared
+**Supabase** server so a pet reported on one device can be found by anyone, anywhere —
+with a localStorage fallback so it still runs for local development without a backend.
 
 This is a **static front-end** (plain HTML/CSS/JS — no build step) backed by an optional
 **Supabase** project for shared data and abuse protection.
 
 ---
 
-## What works without any backend
+## Local fallback (development, no backend)
 
-Open `index.html` and everything runs against `localStorage`:
+This is the fallback mode, not how it's meant to ship. Open `index.html` with no
+Supabase configured and everything runs against `localStorage`:
 
 - Report lost/found pets, browse, match, bookmark, share, flyers, assistant, etc.
 - Community board posting (local to that browser only).
 - Calm generative ambient **soundtrack** (🔈 toggle in the header / mobile menu) —
-  synthesised in-browser via the Web Audio API, so there's no audio file to ship and
-  it works offline. Off by default; never autoplays.
+  synthesised in-browser via the Web Audio API, so there's no audio file to ship.
+  On by default; starts on the visitor's first click/tap/scroll (browsers block
+  audible autoplay until then). Toggle off anytime from the header or settings.
 
 Without Supabase configured, data **never leaves the device**.
 

@@ -1109,9 +1109,9 @@ function initDarkModeBtn() {
 }
 
 // =========================================
-// Calm ambient soundtrack (generative — Web Audio API)
-// No external audio files: a soft, slowly-breathing chord drone.
-// Never autoplays; only starts on an explicit user gesture.
+// Calm ambient soundtrack — baked WAV with a generative Web Audio fallback.
+// On by default. Browsers block audible autoplay until the first interaction,
+// so it starts the instant the user clicks / taps / scrolls / presses a key.
 // =========================================
 let _audioCtx = null;
 let _audioNodes = null;
@@ -1144,8 +1144,25 @@ function startAmbientSound() {
   const onFail = () => { if (_bgAudio === a) { _bgAudio = null; startGenerativeSound(); } };
   a.addEventListener("error", onFail, { once: true });
   const p = a.play();
-  if (p && p.then) p.then(() => fadeAudioTo(a, 0.55, 3500)).catch(onFail);
+  if (p && p.then) p.then(() => fadeAudioTo(a, 0.55, 3500)).catch(err => {
+    // Autoplay blocked by the browser: keep the element and retry on first interaction.
+    // Only fall back to the generative engine on a genuine load failure.
+    if (err && err.name === "NotAllowedError") return;
+    onFail();
+  });
   else fadeAudioTo(a, 0.55, 3500);
+}
+
+// Make sure the soundtrack is actually audible — resume a suspended context, retry a
+// blocked <audio> element, or start fresh. Safe to call repeatedly.
+function ensureAmbientPlaying() {
+  if (_audioCtx && _audioCtx.state === "suspended") _audioCtx.resume();
+  if (_bgAudio && _bgAudio.paused) {
+    const a = _bgAudio;
+    const p = a.play();
+    if (p && p.then) p.then(() => fadeAudioTo(a, 0.55, 3500)).catch(() => {});
+  }
+  if (!_bgAudio && !_audioNodes) startAmbientSound();
 }
 
 function stopAmbientSound() {
@@ -1294,20 +1311,29 @@ function initSoundBtn() {
   const desktop = document.getElementById("sound-btn");
   const mobile = document.getElementById("mobile-sound-btn");
   if (!desktop && !mobile) return;
+
+  // On by default: autoplay the calm soundtrack for anyone who hasn't turned it off.
+  state.settings = state.settings || {};
+  if (state.settings.sound === undefined) {
+    state.settings.sound = true;
+    saveState();
+  }
+
   updateSoundBtn();
   desktop?.addEventListener("click", toggleSound);
   mobile?.addEventListener("click", toggleSound);
 
-  // If the user had it on from a previous visit, resume on their first gesture
-  // (browser autoplay policy blocks audio until then).
-  if (state.settings?.sound) {
-    const resume = () => {
-      startAmbientSound();
-      document.removeEventListener("pointerdown", resume);
-      document.removeEventListener("keydown", resume);
+  // Autoplay. Browsers block audible sound until the first interaction, so we try
+  // immediately and then guarantee it on the very first click / tap / scroll / key.
+  if (state.settings.sound) {
+    ensureAmbientPlaying();
+    const kick = () => {
+      ensureAmbientPlaying();
+      ["pointerdown", "keydown", "touchstart", "scroll", "click"].forEach(ev =>
+        document.removeEventListener(ev, kick));
     };
-    document.addEventListener("pointerdown", resume);
-    document.addEventListener("keydown", resume);
+    ["pointerdown", "keydown", "touchstart", "scroll", "click"].forEach(ev =>
+      document.addEventListener(ev, kick, { passive: true }));
   }
 }
 
