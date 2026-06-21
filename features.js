@@ -100,7 +100,7 @@ function generateShareCard(listing, cb) {
   ctx.fillRect(0, 370, 800, 50);
   ctx.fillStyle = "#4a4135";
   ctx.font = "17px system-ui, -apple-system, sans-serif";
-  ctx.fillText(`pawtrail.example/listing/${listing.id}`, 24, 401);
+  ctx.fillText(`${window.location.host || 'pawtrail.app'}/listing/${listing.id}`, 24, 401);
 
   // PawTrail brand
   ctx.fillStyle = "#e87c2e";
@@ -223,7 +223,7 @@ function myListingCard(l, matchCount = 0) {
           ${isActive ? `<button class="btn small my-listing-action" data-action="pause" data-id="${l.id}">${icon('pause')} Pause</button>` : ""}
           ${isPaused ? `<button class="btn small my-listing-action" data-action="resume" data-id="${l.id}">▶ Resume</button>` : ""}
           ${(isActive || isPaused) ? `<button class="btn small found my-listing-action" data-action="reunite" data-id="${l.id}"> Mark reunited</button>` : ""}
-          <button class="btn small ghost" data-action="flyer" data-id="${l.id}" onclick="openFlyer(findListing('${l.id}'))">${icon('printer')} Flyer</button>
+          <button class="btn small ghost my-listing-action" data-action="flyer" data-id="${l.id}">${icon('printer')} Flyer</button>
           <a href="#/share-wizard/${l.id}" class="btn small" data-link>${icon('megaphone')} Share wizard</a>
           ${isExpired || isReunited ? `<button class="btn small ghost my-listing-action" data-action="delete" data-id="${l.id}" style="color:var(--lost);">${icon('trash')} Delete</button>` : ""}
         </div>
@@ -239,6 +239,7 @@ function handleMyListingAction(e) {
   const listing = state.listings.find(l => l.id === id);
   if (!listing) return;
 
+  if (action === "flyer") { openFlyer(findListing(id)); return; }
   if (action === "pause") { listing.status = "paused"; toast("Listing paused — it won't appear in search results until you resume it."); }
   if (action === "resume") { listing.status = "active"; toast("Listing resumed and visible again."); }
   if (action === "reunite") {
@@ -295,7 +296,7 @@ function renderShareWizard(id) {
   if (!l) { navigate("#/listings"); return; }
 
   const title = l.name || (l.type === "found" ? `Found ${l.species}` : `Lost ${l.species}`);
-  const url = `https://pawtrail.example/listing/${l.id}`;
+  const url = window.location.origin + window.location.pathname + '#/listing/' + l.id;
   const defaultCopy = `${l.type === "lost" ? "LOST PET" : "FOUND PET"}: ${title} near ${l.location || "our neighborhood"}.${l.reward ? ` Reward $${l.reward}.` : ""} ${l.breed ? l.breed + ". " : ""}${l.features ? l.features.slice(0, 80) + "... " : ""}Please share! ${url}`;
 
   const groupsHtml = LOCAL_FB_GROUPS.map(g => html`
@@ -430,7 +431,7 @@ function renderShareCounts(listingId) {
 }
 
 function doShareWizard(channel, l, customText) {
-  const url = `https://pawtrail.example/listing/${l.id}`;
+  const url = window.location.origin + window.location.pathname + '#/listing/' + l.id;
   const t = encodeURIComponent(customText || "");
   const u = encodeURIComponent(url);
   const targets = {
@@ -1397,6 +1398,15 @@ window.renderListingDetail = async function(id) {
 // =========================================
 // features.js init — called after app.js init
 // =========================================
+function initScrollToTop() {
+  const btn = document.getElementById("back-to-top");
+  if (!btn) return;
+  window.addEventListener("scroll", () => {
+    btn.classList.toggle("visible", window.scrollY > 400);
+  }, { passive: true });
+  btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+}
+
 function initFeatures() {
   initDarkModeBtn();
   initSearchOverlay();
@@ -1404,6 +1414,7 @@ function initFeatures() {
   initKeyboardShortcuts();
   initGShortcuts();
   initSoundBtn();
+  initScrollToTop();
 }
 
 // Hook into DOMContentLoaded (app.js already has one; features.js adds its own)

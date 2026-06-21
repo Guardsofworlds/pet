@@ -876,7 +876,23 @@ function routeRender(hash) {
   if (route === "ai") {
     if (window.PawTrailAI?.mind?.renderPage) return window.PawTrailAI.mind.renderPage();
   }
-  renderHome();
+  render404(route);
+}
+
+function render404(route) {
+  $("#app").innerHTML = html`
+    <div style="text-align:center; padding:80px 24px 60px; max-width:480px; margin:0 auto;">
+      <div style="font-size:72px; margin-bottom:16px;">🐾</div>
+      <h1 style="font-size:36px; font-weight:800; letter-spacing:-.03em; margin:0 0 10px;">Page not found</h1>
+      <p class="muted" style="font-size:16px; margin:0 0 32px;">The path <code style="background:var(--surface-2,var(--line)); padding:2px 6px; border-radius:4px; font-size:14px;">${escapeHtml(route || "/")}</code> doesn't exist.</p>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <a href="#/" data-link class="btn primary">Go home</a>
+        <a href="#/listings" data-link class="btn">Browse listings</a>
+        <a href="#/lost" data-link class="btn ghost">Report a lost pet</a>
+      </div>
+    </div>
+  `;
+  bindLinks();
 }
 
 // ---------- views ----------
@@ -1337,7 +1353,8 @@ function petImageColors(color) {
 // Returns a data-URI SVG illustration built from the listing's described traits.
 function generatePetSVG(l) {
   const [c1, c2] = petImageColors(l.color);
-  const emoji = speciesEmoji(l.species);
+  const EMOJI_MAP = { dog: "🐕", cat: "🐈", rabbit: "🐇", bird: "🐦", fish: "🐟" };
+  const emoji = EMOJI_MAP[String(l.species || "").toLowerCase()] || "🐾";
   const name = l.name || (l.type === "found" ? "Found pet" : "Lost pet");
   const sub = [l.breed, l.color].filter(Boolean).join(" · ");
   const xml = s => String(s ?? "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
@@ -1438,6 +1455,7 @@ function renderListings() {
       ? items.map(listingCard).join("")
       : `<div class="empty" style="grid-column:1/-1;"><div class="emoji">${icon('search')}</div>No matching listings. Try widening your filters.</div>`;
     bindLinks();
+    if (items.length) loadBreedPhotos(r);
   }
   apply();
 
@@ -1471,11 +1489,31 @@ async function renderListingDetail(id) {
     </div>
   ` : "";
 
+  const EXPIRY_DAYS = 90;
+  const postedMs = l.posted ? new Date(l.posted).getTime() : 0;
+  const daysAlive = postedMs ? Math.floor((Date.now() - postedMs) / 86400000) : 0;
+  const daysLeft = EXPIRY_DAYS - daysAlive;
+  const expiryBar = l.status === "active" && postedMs ? (() => {
+    const pct = Math.min(100, Math.round(daysAlive / EXPIRY_DAYS * 100));
+    const urgent = daysLeft <= 14;
+    const barColor = urgent ? "var(--lost)" : daysLeft <= 30 ? "var(--warn)" : "var(--found)";
+    return `<div style="margin-bottom:16px; padding:12px 16px; border-radius:10px; background:var(--surface); border:1px solid var(--line);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-size:13px; font-weight:600; color:${barColor};">${urgent ? icon('alert-triangle') : icon('clock')} ${daysLeft > 0 ? `${daysLeft} days until expiry` : "Expired"}</span>
+        <span style="font-size:12px; color:var(--muted);">Posted ${daysAlive}d ago</span>
+      </div>
+      <div style="height:6px; background:var(--line); border-radius:999px; overflow:hidden;">
+        <div style="height:100%; width:${pct}%; background:${barColor}; border-radius:999px; transition:width .4s;"></div>
+      </div>
+    </div>`;
+  })() : "";
+
   $("#app").innerHTML = html`
     <a href="#/listings" data-link class="muted" style="display:inline-block; margin-bottom:14px;">← Back to listings</a>
     ${reunitedBanner}
     <div class="detail-grid">
       <div>
+        ${expiryBar}
         <div class="detail-photo" style="background-image:url('${l.photo ? escapeHtml(l.photo) : petAvatar(l)}')"></div>
         <div style="margin-top:14px; display:flex; gap:6px; flex-wrap:wrap;">
           <span class="tag-inline ${tagClass}">${tagText}</span>
@@ -1635,6 +1673,7 @@ function compareImages(img1, img2) {
   canvas.width = size; canvas.height = size;
 
   const getFingerprint = (img) => {
+    ctx.clearRect(0, 0, size, size);
     ctx.drawImage(img, 0, 0, size, size);
     const d = ctx.getImageData(0, 0, size, size).data;
     const structure = []; 
@@ -1906,6 +1945,7 @@ function renderForm(type) {
                 <input id="photo-file" type="file" accept="image/*" multiple />
               </label>
               <div class="photo-preview" id="photo-preview"></div>
+              <div id="photo-counter" style="font-size:12px; color:var(--muted); margin-top:4px;"></div>
             </div>
           </div>
 
@@ -1918,7 +1958,7 @@ function renderForm(type) {
                 <label>Location last ${isLost ? "seen" : "found"}</label>
                 <div style="display:flex; gap:6px;">
                   <input type="text" id="location" placeholder="e.g. Riverbend Park, Pinecrest & 4th" value="${escapeHtml(draft?.location || "")}" required style="flex:1;" />
-                  <button type="button" class="btn small" id="geo-btn" title="Use my location"></button>
+                  <button type="button" class="btn small" id="geo-btn" title="Use my location">${icon('map-pin')} Use my location</button>
                 </div>
               </div>
               <div class="row" style="gap:10px; align-items:flex-start;">
@@ -2382,20 +2422,32 @@ function initFormHandlers(type) {
     });
   });
 
+  const MAX_PHOTOS = 10;
+  function renderPhotoPreview() {
+    const p = $("#photo-preview");
+    if (!p) return;
+    p.innerHTML = photos.map((src, i) => `
+      <div style="position:relative; display:inline-block;">
+        <img src="${src}" alt="Photo ${i+1}" />
+        <button data-photo-idx="${i}" class="photo-remove-btn" style="position:absolute;top:-6px;right:-6px;background:var(--lost);color:white;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;" aria-label="Remove photo">${icon('x')}</button>
+      </div>`).join("");
+    const counter = $("#photo-counter");
+    if (counter) counter.textContent = `${photos.length} / ${MAX_PHOTOS} photos`;
+    p.querySelectorAll(".photo-remove-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        photos.splice(Number(btn.dataset.photoIdx), 1);
+        renderPhotoPreview();
+      });
+    });
+  }
+
   // Photo upload
   $("#photo-file")?.addEventListener("change", e => {
     Array.from(e.target.files || []).forEach(f => {
+      if (photos.length >= MAX_PHOTOS) { toast(`Maximum ${MAX_PHOTOS} photos allowed.`); return; }
       if (f.size > 10 * 1024 * 1024) { toast("Photo over 10 MB — please pick a smaller file."); return; }
       const reader = new FileReader();
-      reader.onload = ev => {
-        photos.push(ev.target.result);
-        const p = $("#photo-preview");
-        if (p) p.innerHTML = photos.map((src, i) => `
-          <div style="position:relative; display:inline-block;">
-            <img src="${src}" alt="Photo ${i+1}" />
-            <button onclick="this.parentElement.remove()" style="position:absolute;top:-6px;right:-6px;background:var(--lost);color:white;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;">${icon('x')}</button>
-          </div>`).join("");
-      };
+      reader.onload = ev => { photos.push(ev.target.result); renderPhotoPreview(); };
       reader.readAsDataURL(f);
     });
   });
@@ -2403,7 +2455,7 @@ function initFormHandlers(type) {
   // ZIP live matching
   $("#zip")?.addEventListener("input", e => {
     const zip = e.target.value.trim();
-    updateLiveMatchBar(species, zip);
+    updateLiveMatchBar(species, zip, type);
     if (zip.length >= 3) updateSidebarMatches(species, zip);
   });
 
@@ -2421,7 +2473,7 @@ function initFormHandlers(type) {
           const locationEl = document.getElementById("location");
           const zipEl = document.getElementById("zip");
           if (locationEl && loc) locationEl.value = loc;
-          if (zipEl && a.postcode) { zipEl.value = a.postcode.slice(0, 5); updateLiveMatchBar(species, zipEl.value); updateSidebarMatches(species, zipEl.value); }
+          if (zipEl && a.postcode) { zipEl.value = a.postcode.slice(0, 5); updateLiveMatchBar(species, zipEl.value, type); updateSidebarMatches(species, zipEl.value); }
           toast("Location filled in.");
         })
         .catch(() => toast("Couldn't look up address — please type it manually."));
@@ -2459,6 +2511,8 @@ function initFormHandlers(type) {
       toast(validation.message, validation.banned ? 5200 : 4200);
       return;
     }
+    const submitBtn = document.querySelector('#pet-form [type="submit"]');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Submitting…"; }
     const id = "U-" + Date.now().toString(36).toUpperCase();
     const listing = {
       id, type, species,
@@ -2574,13 +2628,12 @@ function initFormHandlers(type) {
   }
 }
 
-function updateLiveMatchBar(species, zip) {
+function updateLiveMatchBar(species, zip, type) {
   const bar = $("#live-match-bar");
   if (!bar) return;
   const matches = liveMatchCount(species, zip);
   if (!matches) { bar.hidden = true; return; }
-  const opposite = { lost: "found", found: "lost" };
-  const oppCount = matches.filter(l => l.type !== (state.draft?.type || "lost")).length;
+  const oppCount = matches.filter(l => l.type !== (type || "lost")).length;
   bar.hidden = false;
   bar.innerHTML = oppCount > 0
     ? `<span class="live-match-found">${icon('target')} ${oppCount} ${species || "pet"} report${oppCount !== 1 ? "s" : ""} in your area could match — submitting this will cross-reference them all.</span>`
@@ -3164,7 +3217,8 @@ function openModal(innerHtml) {
 }
 
 function showLocationCookiePrompt() {
-  if (state.cookieConsent) return; // already decided this session or a previous visit
+  if (state.cookieConsent) return;
+  if (document.getElementById("cookie-full")) return; // modal already open
   const m = openModal(html`
     <div style="max-width:380px; padding:6px;">
       <div style="font-size:40px; margin-bottom:10px; text-align:center;"></div>
@@ -3276,7 +3330,7 @@ function openFlyer(l) {
   <p class="desc">Near <strong>${l.location || ""}</strong></p>
   <p class="phone">${phone}</p>
   <div class="qr">QR CODE</div>
-  <p class="url">pawtrail.example/listing/${l.id}</p>
+  <p class="url">${window.location.host || 'pawtrail.app'}/listing/${l.id}</p>
   <script>setTimeout(() => window.print(), 350);</script>
   </body></html>`);
   win.document.close();
@@ -3284,7 +3338,7 @@ function openFlyer(l) {
 
 // ---------- share ----------
 function doShare(channel, l) {
-  const url = `https://pawtrail.example/listing/${l.id}`;
+  const url = window.location.origin + window.location.pathname + '#/listing/' + l.id;
   const title = `${l.type === "lost" ? "LOST" : "FOUND"}: ${l.name || l.species} near ${l.location || "our neighborhood"}`;
   const text = encodeURIComponent(`${title}. ${l.features ? l.features.slice(0, 90) + "… " : ""}Please share!`);
   const u = encodeURIComponent(url);
