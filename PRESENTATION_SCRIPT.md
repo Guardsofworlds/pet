@@ -1,8 +1,8 @@
 # PawTrail — Presentation Script
 
-*Read this out loud. It's written the way you'd actually say it — short sentences,
-plain words, room to breathe. Slashes ( / ) are little pause marks. **Bold** is where
-to lean in. The [DO THIS] notes tell you what to click.*
+*Read this out loud. Every line is one breath — just read down the page and let
+yourself pause at the end of each line. A blank line is a longer beat, a moment to
+breathe. **Bold** is where to lean in. The [DO THIS] notes tell you what to click.*
 
 **Before you start:** Open the site to the home page and click "Accept" on the little
 cookie/location bar once, so it's gone during the demo. Have the **Browse** page and
@@ -10,89 +10,162 @@ cookie/location bar once, so it's gone during the demo. Have the **Browse** page
 
 ---
 
-## 1 — Open (about 30 seconds)
+## 1 — Who this is for (about 40 seconds)
 
-> I want you to picture something for a second.
+> Quick question to start.
+> How many of you have a pet?
+> Or grew up with one?
 >
-> You let the dog out into the backyard like you do every morning. / You turn around
-> to grab your coffee. / You look back — and the gate's open. / And he's gone.
+> Yeah. Most of the room.
 >
-> If you've ever had a pet, your stomach just dropped a little. / That feeling — that
-> specific panic — is what we built this for.
+> So you already know the deal.
+> We love them like family —
+> and they have no idea where they live.
+>
+> One open gate.
+> One unlatched door.
+> One loud night on the Fourth of July.
+> And they're gone.
+>
+> So that's who this is for.
+> The owner, standing in the driveway, calling a name.
+> The person who finds a scared dog in their yard
+> and has no clue who it belongs to.
+> And the shelter with a kennel full of pets nobody's come for yet.
+>
+> Three people with the exact same problem.
+> Who, right now, never find each other.
 >
 > This is **PawTrail.**
 
 ---
 
-## 2 — The problem (about 60 seconds)
+## 2 — What problem it solves (about 75 seconds)
 
-> Here's the thing most people don't know. / About **ten million** pets go missing
-> in the United States every single year. / Roughly **one in three** pets will get
-> lost at some point in their life. This isn't a rare thing. It probably happens to
-> someone on your street this month.
+> So here's the problem.
 >
-> And here's the part that actually matters: / the clock is everything. / The pets
-> who make it home are overwhelmingly the ones found in the **first day** — sometimes
-> the first few hours. After that, the odds drop fast.
+> About **ten million** pets go missing in this country every year.
+> One in three will get lost at some point in their life.
+> This isn't rare. It's a Tuesday.
 >
-> So what do people do right now, in that panic? / They post in a Facebook group. /
-> They make a paper flyer. / They drive around calling a name out the car window. /
-> They call shelters one at a time.
+> And the thing that decides whether they come home?
+> Time.
 >
-> Every one of those tools is **slow**, and none of them talk to each other. / The
-> person who *lost* a dog and the person who *found* it three streets over might both
-> be posting at the same moment — / in different groups — / and never find each other.
+> The pets who make it back
+> are almost always the ones found in the **first day.**
+> Sometimes the first hour.
+> After that, it gets hard fast.
 >
-> That gap is where pets get lost for good. / **PawTrail closes that gap.**
+> So what do people actually do right now?
+>
+> They post in a Facebook group.
+> They staple a flyer to a pole.
+> They drive around yelling a name out the window.
+> They call shelters, one at a time.
+>
+> All of it slow.
+> And none of it connected.
+>
+> The person who *lost* the dog
+> and the person who *found* it three streets over
+> are both posting at the same minute —
+> in different places —
+> and never see each other.
+>
+> That's the gap.
+> And that's the whole thing PawTrail fixes.
+>
+> One free place.
+> Lost meets found.
+> Matched automatically, in seconds.
 
 ---
 
-## 3 — What it is (about 20 seconds)
+## 3 — How you know it works (about 4 minutes)
 
-> PawTrail is one free place to report a lost or found pet / and it **automatically
-> matches** the two sides — instantly. / No account. No fee. Works on any phone. /
-> Let me just show you, because the demo says it better than I can.
+> Okay, but does it actually work?
+> Let me just show you — the demo says it way better than I can.
 
 [DO THIS: Share your screen / show the home page.]
 
----
-
-## 4 — The live demo (about 3 minutes)
-
 **Home page**
 
-> This is the first thing a panicked person sees. / Notice we don't make them think. /
-> Two buttons. **"I Lost a Pet"** in red. **"I Found a Pet"** in green. / That's the
-> whole decision.
+> This is the first thing a scared person sees.
+> And notice —
+> we don't make them think.
 >
-> Up top you can see it's alive — / dozens of active cases nearby, / pets reunited
-> this month, / and a median reunion time measured in hours, not days. / This little
-> ticker is real reunions scrolling by.
+> Two buttons.
+> **"I Lost a Pet"** in red.
+> **"I Found a Pet"** in green.
+> That's the whole decision.
+>
+> And up top, you can see it's alive.
+> Active cases nearby.
+> Pets reunited this month.
+> Reunions happening in hours, not days.
+>
+> This little ticker?
+> Those are real reunions, scrolling by.
 
 [DO THIS: Click **Browse**.]
 
 **Browse cases**
 
-> Here's every active case in the area on one map and one feed. / Lost in red, found
-> in green, shelter intakes in blue. / You can filter by species, by ZIP, by "show me
-> the happy endings." / But watch what happens when I open one.
+> This is every active case in the area.
+> One map.
+> One feed.
+>
+> Lost in red, found in green, shelter pets in blue.
+> You can filter by animal, by ZIP,
+> or just say "show me the happy endings."
+>
+> But watch what happens when I open one.
 
 [DO THIS: Open **Rusty** — the lost golden retriever. Scroll to "Possible matches."]
 
 **Rusty's listing — THE moment**
 
-> So this is Rusty. A golden retriever, lost near Hollow Creek Park five hours ago. /
-> Owner filled out a simple form — photo, where, when, how to reach them.
+> So this is Rusty.
+> Golden retriever.
+> Lost near Hollow Creek Park, about five hours ago.
 >
-> Now look at this. / **"Possible matches."** / PawTrail already scanned every other
-> listing and found this — / [point] — a golden retriever someone **found** half a
-> mile away, three hours ago. / Same breed, same color, same size, same neighborhood,
-> and the photos line up. / **A hundred percent confidence match.**
+> His owner filled out a quick form —
+> photo, where, when, how to reach them.
+> That's it.
 >
-> The owner didn't search for this. / It found *them*. / In the time it took to fill
-> out the form, the alert was already on its way. / One tap — / "This is my pet" — /
-> and they're connected. / *That* is the difference between a pet who comes home and
-> one who doesn't.
+> Now...
+> look at this.
+>
+> **"Possible matches."**
+>
+> While they were filling out that form,
+> PawTrail already scanned every other listing.
+> And it found this.
+> [point]
+> A golden retriever that someone **found** —
+> half a mile away —
+> three hours ago.
+>
+> Same breed.
+> Same color.
+> Same size.
+> Same neighborhood.
+> And the photos line up.
+>
+> **A hundred percent match.**
+>
+> The owner didn't go looking for this.
+> It came to *them*.
+>
+> By the time they finished the form,
+> the alert was already on its way.
+> One tap —
+> "This is my pet" —
+> and they're connected.
+>
+> *That's* the difference.
+> Between a pet who comes home
+> and one who doesn't.
 
 [Pause here. Let it land. This is the whole pitch in one screen.]
 
@@ -100,67 +173,98 @@ cookie/location bar once, so it's gone during the demo. Have the **Browse** page
 
 [DO THIS: Click **Community**.]
 
-> It's not just the algorithm. / Real neighbors post sightings, tips, and reunions
-> here. / See this one — / "saw a golden retriever on Hollow Creek Drive this morning."
-> / That's a human being helping, and it links straight to the listing. / The
-> algorithm and the neighborhood, working together.
+> And it's not just the algorithm.
+> Real neighbors post here too.
+> Sightings, tips, reunions.
+>
+> Look at this one —
+> "saw a golden retriever on Hollow Creek Drive this morning."
+>
+> That's a real person helping.
+> And it links straight to the listing.
+>
+> The algorithm and the neighborhood —
+> working together.
 
 **The assistant** *(optional, ~20s)*
 
 [DO THIS: Click the **"Ask us anything"** button, type: *is this a scam?*]
 
-> And nobody's alone in this. / There's a 24/7 assistant trained on our advice guides.
-> / Watch — I'll ask the question everyone's too embarrassed to ask. / "Is this a
-> scam?" / Instant, calm, useful answer. Because within hours of posting, people *do*
-> get those "I have your pet, send money" texts — and we warn you before it happens.
-
-**One more, your call** *(optional)*
-
-[DO THIS: toggle **dark mode** (moon icon) OR show the **"I Lost a Pet"** form.]
-
-> Quick thing — it installs like an app, works offline, and has a dark mode for the
-> 2 a.m. searches. Built for the worst night of someone's year.
-
----
-
-## 5 — Why it's different / the tech (about 45 seconds)
-
-> Under the hood, a few things make this work:
+> And nobody goes through this alone.
+> There's a 24/7 assistant,
+> trained on all our advice guides.
 >
-> - **Instant matching.** Every new report is scored against the whole database in
->   seconds — / species, breed, color, location, date, *and* photo similarity.
-> - **Your privacy is protected.** Every message goes through a relay. / Your real
->   phone number and email are **never** public.
-> - **Scams get caught automatically.** Mention money in a message and it's flagged
->   and quarantined before it reaches a frightened owner.
-> - **It pulls in shelters too.** / Found pets sitting in shelters show up as matches
->   automatically — / so a dog behind a kennel door isn't invisible anymore.
+> Watch —
+> I'll ask the thing everyone's a little embarrassed to ask.
+> "Is this a scam?"
 >
-> And all of it is **free.** / The competitors put alerts behind a paywall. / We think
-> charging a crying person to find their dog is the wrong business to be in.
-
----
-
-## 6 — Close (about 30 seconds)
-
-> So that's PawTrail. / One place. / Lost meets found. / Automatically, in seconds,
-> for free.
+> And there it is.
+> Instant.
+> Calm.
+> Actually useful.
 >
-> Most lost pets are found within a few miles of home. / The information to reunite
-> them almost always **already exists** — / it's just scattered across a dozen places
-> that don't talk to each other. / We put it in one place / and we made it fast /
-> because for a scared animal and the family looking for them, **speed is everything.**
+> Because within hours of posting,
+> people really do get those "I have your pet, send money" texts.
+> We warn you before that happens.
+
+**And this isn't a mockup**
+
+> Quick look under the hood,
+> because all of this is really running.
 >
-> Ten million pets a year. / Let's get more of them home. / Thank you.
+> **Matching is instant.**
+> Every new report gets scored against the whole database in seconds.
+> Species, breed, color, location, date —
+> and even how closely the photos match.
+>
+> **Your privacy stays yours.**
+> Every message goes through us first.
+> Your real number and email?
+> Never public.
+>
+> **Scams get caught on their own.**
+> If someone mentions money in a message,
+> it gets flagged and held back
+> before it ever reaches a frightened owner.
+>
+> **And it includes shelters.**
+> Pets sitting in a shelter show up as matches automatically.
+> So a dog behind a kennel door
+> isn't invisible anymore.
+>
+> And all of it is **free.**
+> Other services put alerts behind a paywall.
+> We just think —
+> charging a crying person to find their dog
+> is the wrong way to make money.
+
+**Wrap**
+
+> So that's PawTrail.
+>
+> Who it's for —
+> anyone who's ever lost a pet, or found one.
+>
+> What it does —
+> puts lost and found in one place, and matches them in seconds.
+>
+> And you just watched it work.
+>
+> Ten million pets a year.
+> Let's get more of them home.
+>
+> Thank you.
 
 ---
 
 ## Delivery notes (for you, not to read)
 
-- **Slow down on the open and the match.** Those two moments carry the whole talk.
-  When you hit Rusty's 100% match, stop talking for a beat and let them look.
-- **Don't read the bullet lists word-for-word.** Glance and paraphrase — it sounds
-  more human.
+- **The opening question is your icebreaker.** If it's a room where a show of hands
+  feels off, just say it rhetorically — "most of us have had a pet" — and keep going.
+- **Slow down on the match.** When you hit Rusty's 100% match, stop talking for a beat
+  and let them look. That one screen is the whole pitch.
+- **The lines are your pace.** One line, one breath. Don't rush to fill the silence at
+  the blank lines — that pause is doing the work.
 - **If the internet is flaky:** the app works fully offline on seed data, so the demo
   still runs. The Browse/Global pages may show fewer listings offline — that's fine,
   the Rusty match still works because it's local data.
@@ -168,7 +272,8 @@ cookie/location bar once, so it's gone during the demo. Have the **Browse** page
   illustrative for the demo, but the *matching, the shelter feed, and the scam
   detection are real working features*, not mockups. (The Global page pulls live
   from real open shelter data.)
-- **Total runtime:** ~6–7 minutes talking + demo. Cut Section 5 bullets if you're tight.
+- **Total runtime:** ~6–7 minutes talking + demo. If you're tight, cut the
+  "isn't a mockup" feature list down to just matching + free.
 
 ## Quick fact-check (verify before you present so you're bulletproof)
 
